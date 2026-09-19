@@ -1,19 +1,11 @@
-.PHONY: graphs stats grid site test lint
-
-graphs:
-	python scripts/02_build_graphs.py
-
-stats:
-	python scripts/03_network_stats.py
-
-grid:
-	python scripts/04_run_grid.py
-
-site:
-	cd site && quarto render && quarto preview
+.PHONY: test lint
 
 test:
 	pytest -q
 
 lint:
 	ruff check .
+
+# More targets (graphs, stats, grid, site) get added here as the corresponding
+# scripts/ and site/ directories are created — see README for why they don't
+# exist yet.
