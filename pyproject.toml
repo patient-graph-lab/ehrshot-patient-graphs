@@ -1,0 +1,39 @@
+[project]
+name = "ehrgraph"
+version = "0.1.0"
+description = "Leakage-safe patient graphs for few-shot clinical prediction on EHRSHOT"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+readme = "README.md"
+dependencies = [
+    "pandas",
+    "pyarrow",
+    "networkx",
+    "scikit-learn",
+    "scipy",
+    "python-louvain",
+    "python-igraph",
+    "leidenalg",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+gnn = ["torch", "torch_geometric"]
+dev = ["ruff", "pytest", "pre-commit", "nbstripout"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

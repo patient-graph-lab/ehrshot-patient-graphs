@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Leakage-Safe Patient Graphs for Few-Shot Clinical Prediction"
+type: software
+authors:
+  - family-names: "TODO"
+    given-names: "TODO"
+    affiliation: "University of South Florida"
+repository-code: "https://github.com/patient-graph-lab/ehrshot-patient-graphs"
+license: Apache-2.0
+version: 0.1.0
+date-released: "2026-09-18"

@@ -1,0 +1,53 @@
+# Data — never committed. All access via $EHRSHOT_DATA_ROOT, never a relative path.
+data/**
+!data/README.md
+!data/checksums.txt
+
+# Any file type that could carry patient-level data, anywhere in the tree
+*.parquet
+*.csv
+*.zip
+*.tar.gz
+*.pkl
+*.npy
+*.npz
+*.pt
+*.feather
+*.arrow
+*.db
+
+# ...except aggregate, non-patient-level results, explicitly allowlisted
+!results/aggregate/*.csv
+!results/aggregate/.gitkeep
+
+# Patient-level results — never committed
+results/per_patient/**
+!results/per_patient/.gitkeep
+
+# EHRSHOT asset/reader directories, if ever extracted locally by mistake
+**/EHRSHOT_ASSETS/
+**/meds_reader*/
+**/meds_omop_ehrshot/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Notebooks — outputs stripped by nbstripout via pre-commit; ignore checkpoints regardless
+.ipynb_checkpoints/
+
+# Site build output
+site/_site/
+site/.quarto/
+paper/*.pdf
+paper/*_files/
+
+# OS / editor
+.DS_Store
+.vscode/

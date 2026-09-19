@@ -1,0 +1,15 @@
+name: Task
+description: A piece of work to be done
+title: "[task] "
+labels: ["task"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done

@@ -1,0 +1,63 @@
+name: data-guard
+
+# This is the governance gate: it must never be bypassable, and it must run on every PR
+# before anything reaches main. See DATA_ACCESS.md for why this exists.
+
+on:
+  pull_request:
+
+jobs:
+  no-data-committed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail if any data-shaped file is added outside results/aggregate/
+        run: |
+          set -e
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only --diff-filter=A "$BASE" "$HEAD" || true)
+          BAD=$(echo "$CHANGED" | grep -E '\.(parquet|csv|zip|tar\.gz|pkl|npy|npz|pt|feather|arrow|db)$' | grep -v '^results/aggregate/' || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::Data-shaped file(s) added outside results/aggregate/:"
+            echo "$BAD"
+            exit 1
+          fi
+
+      - name: Fail if any added file exceeds 500KB
+        run: |
+          set -e
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          for f in $(git diff --name-only --diff-filter=A "$BASE" "$HEAD" || true); do
+            if [ -f "$f" ]; then
+              size=$(stat -c%s "$f")
+              if [ "$size" -gt 512000 ]; then
+                echo "::error::$f is $size bytes, exceeds the 500KB limit"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Fail if any tracked notebook has non-empty outputs
+        run: |
+          set -e
+          for nb in $(git ls-files '*.ipynb'); do
+            if grep -q '"outputs": \[[^]]' "$nb" 2>/dev/null; then
+              echo "::error::$nb has non-empty outputs — run nbstripout before committing"
+              exit 1
+            fi
+          done
+
+      - name: Fail if anything under data/ other than README.md/checksums.txt is tracked
+        run: |
+          set -e
+          BAD=$(git ls-files 'data/*' | grep -v -E '^data/(README\.md|checksums\.txt)$' || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::Unexpected tracked file(s) under data/:"
+            echo "$BAD"
+            exit 1
+          fi
