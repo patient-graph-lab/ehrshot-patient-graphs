@@ -31,14 +31,32 @@ else:
     os.chdir(REPO_DIR)
 
 !pip install -e ".[dev,data]"
-
-from scripts.colab_setup import ensure_ehrshot_data
-ensure_ehrshot_data(checksums_path="data/checksums.txt")
 ```
 
 **Opening the notebook from a specific branch in Colab's UI does not change what this cell clones** — that clone is a separate step, always pulls whatever `BRANCH` says, and defaults to `main` regardless of which branch you opened. Set `BRANCH` explicitly when testing an unmerged PR. And because Colab sessions often get reused across multiple "Run all"s without an actual VM restart, the cell above is written to detect an existing checkout and reset it to `BRANCH`'s latest commit rather than silently keeping stale code — don't simplify this back to a bare `git clone`.
 
-That's it — after this cell, `from ehrgraph.graphs import ...` works, and `EHRSHOT_DATA_ROOT` is set for the rest of the session. See `00_setup_and_sanity_check.ipynb` for the working version of this.
+**If `import ehrgraph` fails with `ModuleNotFoundError` later in the notebook**, this cell didn't actually run in the *currently active* kernel — common after a runtime reconnect, or if you jumped to a later cell without re-running from the top. Data already sitting on disk survives a kernel reconnect (it's just files); the installed package does not (that's kernel state). Fix: re-run this cell, then continue down — it's idempotent, safe to re-run any time.
+
+## Loading the dataset — second cell, right after the bootstrap
+
+```python
+from google.colab import drive
+from scripts.colab_setup import ensure_ehrshot_data
+
+drive.mount("/content/drive")
+DRIVE_TRANSFER_DIR = "/content/drive/MyDrive/ehrshot_transfer"
+
+data_root = ensure_ehrshot_data(
+    checksums_path="data/checksums.txt",
+    source_dir=DRIVE_TRANSFER_DIR,  # recommended — ~100x faster than the fallback below
+)
+```
+
+Recommended path: upload the 4 dataset files to a Drive folder named `ehrshot_transfer` once, then this cell copies them to the VM's local disk. Measured ~90 seconds on a fast connection, vs. hours for the alternative below — Colab's direct-upload widget has a fixed low-throughput ceiling regardless of actual bandwidth. See [`DATA_ACCESS.md`](../DATA_ACCESS.md) for the DUA reasoning and current status of whether the Drive copy is being auto-deleted after each use (that's changed once already).
+
+**Zero-third-party-storage fallback**, if avoiding Drive matters more than speed: on your own machine, `python dismantle_data.py EHRSHOT_ASSETS.zip` (grab just that one file — no repo clone needed, it has no dependencies on the rest of this package) writes `./data-chunks/` with the large file split into pieces plus copies of the other 3. Then call `ensure_ehrshot_data(checksums_path="data/checksums.txt")` with **no** `source_dir` — it prompts an upload dialog; select everything in `data-chunks/`, and the pieces get reassembled automatically.
+
+That's it — after these two cells, `from ehrgraph.graphs import ...` works, and `EHRSHOT_DATA_ROOT` is set for the rest of the session. See `00_setup_and_sanity_check.ipynb` for the working version of both.
 
 ## Saving results back
 

@@ -26,7 +26,7 @@ repos:
         name: block committing data-shaped files outside results/aggregate/
         entry: >-
           bash -c 'git diff --cached --name-only --diff-filter=A
-          | grep -E "\.(parquet|csv|zip|tar\.gz|pkl|npy|npz|pt|feather|arrow|db)$"
+          | grep -E "(\.(parquet|csv|zip|tar\.gz|pkl|npy|npz|pt|feather|arrow|db)$|\.part_[a-zA-Z0-9]+$)"
           | grep -v "^results/aggregate/" && exit 1 || exit 0'
         language: system
         pass_filenames: false

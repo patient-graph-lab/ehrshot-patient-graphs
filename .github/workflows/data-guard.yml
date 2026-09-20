@@ -20,7 +20,7 @@ jobs:
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
           CHANGED=$(git diff --name-only --diff-filter=A "$BASE" "$HEAD" || true)
-          BAD=$(echo "$CHANGED" | grep -E '\.(parquet|csv|zip|tar\.gz|pkl|npy|npz|pt|feather|arrow|db)$' | grep -v '^results/aggregate/' || true)
+          BAD=$(echo "$CHANGED" | grep -E '(\.(parquet|csv|zip|tar\.gz|pkl|npy|npz|pt|feather|arrow|db)$|\.part_[a-zA-Z0-9]+$)' | grep -v '^results/aggregate/' || true)
           if [ -n "$BAD" ]; then
             echo "::error::Data-shaped file(s) added outside results/aggregate/:"
             echo "$BAD"

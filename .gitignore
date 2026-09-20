@@ -15,6 +15,10 @@ data/**
 *.feather
 *.arrow
 *.db
+*.part_*
+
+# Output of scripts/dismantle_data.py, if ever run inside the repo tree
+data-chunks/
 
 # ...except aggregate, non-patient-level results, explicitly allowlisted
 !results/aggregate/*.csv
