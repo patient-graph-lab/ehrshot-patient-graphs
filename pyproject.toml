@@ -19,7 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gnn = ["torch", "torch_geometric"]
-dev = ["ruff", "pytest", "pre-commit", "nbstripout"]
+dev = ["ruff", "pytest", "pre-commit", "nbstripout", "nbqa"]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

@@ -49,6 +49,9 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 │   └── viz/                   figure functions (aggregate inputs only)
 ├── tests/
 │   └── test_smoke.py          confirms the package imports; real tests land as graphs/censoring get built
+├── scripts/
+│   └── colab_setup.py         prompts for the dataset upload each Colab session, sets EHRSHOT_DATA_ROOT
+├── notebooks/                 Project 1 computation happens here — see notebooks/README.md
 ├── data/
 │   ├── README.md              committed — points to DATA_ACCESS.md
 │   └── checksums.txt          committed — sha256 of the expected dataset files, so two people can confirm
@@ -61,7 +64,11 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 ├── pyproject.toml  Makefile
 ```
 
-**Not here yet, on purpose:** `scripts/`, `configs/`, `notebooks/`, `site/`, `docs/adr/`. Each one gets created with a single command the moment there's an actual file to put in it — a `scripts/01_build_cohort.py` when Week 1's data-loading work starts, `site/` when the Quarto build actually begins. An empty folder that exists only to look organized isn't worth the confusion of browsing past it for three weeks with nothing in it.
+**Not here yet, on purpose:** `configs/`, `site/`, `docs/adr/`. Each one gets created with a single command the moment there's an actual file to put in it — `site/` when the Quarto build actually begins. An empty folder that exists only to look organized isn't worth the confusion of browsing past it with nothing in it.
+
+## Computation happens in Colab
+
+Project 1 is computed entirely in Colab — see `notebooks/README.md` for the bootstrap pattern every notebook uses. Nobody needs local compute for this; the data itself is re-uploaded fresh each session (never persisted to Drive, never committed) via `scripts/colab_setup.py`, which always looks for it at a fixed path (`~/EHRSHOT`) so every notebook works the same way without per-session setup.
 
 ## Install
 

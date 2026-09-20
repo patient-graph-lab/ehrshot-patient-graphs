@@ -1,0 +1,39 @@
+name: notebook-lint
+
+# Checks notebooks WITHOUT executing them against real data — this runner has
+# no access to EHRSHOT_DATA_ROOT, by design. See DATA_ACCESS.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint-notebooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+
+      - name: Fail if any notebook has committed outputs
+        run: |
+          shopt -s nullglob
+          nbs=(notebooks/*.ipynb)
+          if [ ${#nbs[@]} -eq 0 ]; then
+            echo "No notebooks yet."
+            exit 0
+          fi
+          nbstripout --verify "${nbs[@]}"
+
+      - name: Lint notebook code cells with ruff
+        run: |
+          shopt -s nullglob
+          nbs=(notebooks/*.ipynb)
+          if [ ${#nbs[@]} -eq 0 ]; then
+            echo "No notebooks yet."
+            exit 0
+          fi
+          nbqa ruff notebooks

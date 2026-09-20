@@ -17,6 +17,12 @@ This repository contains **no patient data of any kind**, at any level of aggreg
    ```
 4. Verify your copy matches what the team is using by comparing against `data/checksums.txt` (`sha256sum` each file) — this lets two collaborators confirm they have the same dataset version without either of them transmitting the data itself.
 
+## Colab workflow (how Project 1 actually runs)
+
+Computation happens in Google Colab. The team's chosen pattern: **the dataset is re-uploaded to Colab's ephemeral local disk every session, never mounted from or persisted to Google Drive.** This was a deliberate choice specifically to avoid the open question of whether the DUA permits a standing copy on a third-party cloud service — nothing persists past the session, so there's no such copy to worry about. `scripts/colab_setup.py` handles the upload prompt and always resolves the data to `~/EHRSHOT` for consistency across notebooks and sessions.
+
+Cloning this **private** repo from within Colab needs a GitHub token: generate a fine-grained personal access token scoped to just this repo, and store it in Colab's Secrets panel (the key icon in the left sidebar, retrieved via `google.colab.userdata.get(...)`) — never typed into a cell in plaintext, where it could leak if the notebook is ever shared.
+
 ## What must never happen
 
 - No raw data file, and nothing derived from it that could re-identify or expose patient-level records, may ever be committed to this repository or published on the project's static site — **regardless of repository visibility**. GitHub Pages sites are publicly reachable even when the source repository is private; repo privacy is not a safeguard for anything published to Pages.
