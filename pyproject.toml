@@ -18,6 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+data = ["meds_reader"]
 gnn = ["torch", "torch_geometric"]
 dev = ["ruff", "pytest", "pre-commit", "nbstripout", "nbqa"]
 

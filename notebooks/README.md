@@ -14,7 +14,7 @@ from google.colab import userdata
 token = userdata.get("GH_PAT")  # set once via the key icon in Colab's left sidebar — never type a token into a cell
 !git clone https://{token}@github.com/patient-graph-lab/ehrshot-patient-graphs.git
 %cd ehrshot-patient-graphs
-!pip install -e ".[dev]"
+!pip install -e ".[dev,data]"
 
 from scripts.colab_setup import ensure_ehrshot_data
 ensure_ehrshot_data(checksums_path="data/checksums.txt")
