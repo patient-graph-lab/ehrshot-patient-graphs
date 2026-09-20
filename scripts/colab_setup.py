@@ -6,36 +6,40 @@ on the VM after the session ends — see DATA_ACCESS.md for why that matters.
 
 Two ways to get the dataset onto the VM's local disk:
 
-1. Browser upload widget (default, no `source_dir` given). Fine for small
-   files, but google.colab.files.upload() moves data through a
-   base64-encoded message channel, not a real streaming upload — it can sit
-   at 0% indefinitely on a multi-GB file like EHRSHOT_ASSETS.zip. Don't rely
-   on it for the full dataset.
+1. **Default (no `source_dir` given): chunked browser upload.** Colab's
+   upload paths (the `files.upload()` widget, and the file-browser
+   drag-and-drop pane) relay through a browser-to-VM connection that isn't
+   built for sustained multi-GB transfers — files above roughly 1-2GB become
+   unreliable. Of the 4 dataset files, only `EHRSHOT_ASSETS.zip` (4.3GB) is
+   actually a problem; the other three upload fine as-is. Split just that one
+   file into chunks first, on your own machine, not in Colab:
+
+       python scripts/dismantle_data.py
+
+   Writes pieces into ./data-chunks/. Then upload all 4 files plus every
+   piece in one `files.upload()` call —
+   this function detects and reassembles any `*.part_*` files automatically.
+   Zero third-party storage touched, nothing to clean up after.
 2. `source_dir=` pointing at a mounted Google Drive folder used as a brief
-   pass-through: Drive's own uploader is a real resumable upload, so getting
-   the files there is fast and reliable; this function then copies them from
-   Drive to the VM's local disk (fast — same Google network). Call
-   `delete_from_drive(source_dir)` immediately after to remove them from
-   Drive so nothing persists there. See DATA_ACCESS.md before using this —
-   the data touches Drive for a few minutes even though nothing persists,
-   which is a different exposure than pure re-upload and worth checking
-   against your DUA terms first.
+   pass-through — kept as a fallback, not the default, given the extra
+   workflow steps (mount, upload, wait, delete) and the DUA question it
+   raises (see DATA_ACCESS.md) that the chunked-upload path above avoids
+   entirely. Drive's own uploader is a real resumable upload; this function
+   copies from Drive to the VM's local disk, then call
+   `delete_from_drive(source_dir)` immediately after.
 
 Usage, as the first real cell of any notebook (after cloning the repo and
 running `pip install -e ".[dev,data]"`):
 
-    from scripts.colab_setup import ensure_ehrshot_data, delete_from_drive
-    data_root = ensure_ehrshot_data(
-        checksums_path="data/checksums.txt",
-        source_dir="/content/drive/MyDrive/ehrshot_transfer",
-    )
-    delete_from_drive("/content/drive/MyDrive/ehrshot_transfer")
+    from scripts.colab_setup import ensure_ehrshot_data
+    data_root = ensure_ehrshot_data(checksums_path="data/checksums.txt")
 """
 
 from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import tarfile
 import zipfile
@@ -49,6 +53,8 @@ EXPECTED_FILES = [
     "meds_omop_ehrshot.tar.gz",
     "meds_reader_omop_ehrshot.tar.gz",
 ]
+
+_CHUNK_PATTERN = re.compile(r"^(?P<original>.+)\.part_[a-zA-Z0-9]+$")
 
 
 def _in_colab() -> bool:
@@ -70,10 +76,39 @@ def _prompt_upload(missing: list[str]) -> None:
     from google.colab import files
 
     print(f"Missing from {EHRSHOT_DATA_ROOT}: {missing}")
-    print("Select them now (you can select multiple files at once in the dialog).")
+    if "EHRSHOT_ASSETS.zip" in missing:
+        print(
+            "EHRSHOT_ASSETS.zip is 4.3GB — too large to upload as one file reliably.\n"
+            "Split it first, on your own machine, not in Colab:\n"
+            "  python scripts/dismantle_data.py\n"
+            "Writes pieces into ./data-chunks/. Then select ALL of: the other 3 "
+            "files + every piece in data-chunks/ in the dialog below "
+            "(multi-select). The parts get reassembled automatically."
+        )
+    print("Select the files now (you can select multiple at once in the dialog).")
     uploaded = files.upload()
     for name, content in uploaded.items():
         (EHRSHOT_DATA_ROOT / name).write_bytes(content)
+    _reassemble_chunks()
+
+
+def _reassemble_chunks() -> None:
+    """Find any <name>.part_* files (from `split`) and concatenate them back
+    into <name>, in sorted order, then remove the parts. `split`'s default
+    suffixes (aa, ab, ... or 000, 001, ...) both sort correctly as strings."""
+    parts_by_original: dict[str, list[Path]] = {}
+    for f in sorted(EHRSHOT_DATA_ROOT.iterdir()):
+        m = _CHUNK_PATTERN.match(f.name)
+        if m:
+            parts_by_original.setdefault(m.group("original"), []).append(f)
+    for original_name, parts in parts_by_original.items():
+        parts.sort()
+        target = EHRSHOT_DATA_ROOT / original_name
+        print(f"Reassembling {len(parts)} parts into {original_name}...")
+        with target.open("wb") as out:
+            for p in parts:
+                out.write(p.read_bytes())
+                p.unlink()
 
 
 def _copy_from_source(missing: list[str], source_dir: Path) -> None:
@@ -160,9 +195,10 @@ def ensure_ehrshot_data(
     """Make sure ~/EHRSHOT has the dataset, extract it if needed, and set
     EHRSHOT_DATA_ROOT for the rest of the session. Returns the resolved path.
 
-    If `source_dir` is given (e.g. a mounted Drive folder), copies missing
-    files from there instead of prompting the browser-upload widget — see
-    the module docstring for why that matters for a file this large.
+    Default: prompts a chunked browser upload (see module docstring — split
+    EHRSHOT_ASSETS.zip first, everything else uploads as-is). If `source_dir`
+    is given (e.g. a mounted Drive folder), copies missing files from there
+    instead — a fallback, not the default; see the module docstring.
     """
     EHRSHOT_DATA_ROOT.mkdir(exist_ok=True)
     missing = [f for f in EXPECTED_FILES if not (EHRSHOT_DATA_ROOT / f).exists()]
@@ -171,6 +207,13 @@ def ensure_ehrshot_data(
             _copy_from_source(missing, Path(source_dir))
         else:
             _prompt_upload(missing)
+        still_missing = [f for f in EXPECTED_FILES if not (EHRSHOT_DATA_ROOT / f).exists()]
+        if still_missing:
+            raise FileNotFoundError(
+                f"Still missing after upload: {still_missing}. If this includes "
+                "EHRSHOT_ASSETS.zip, check every .part_* piece was selected in "
+                "the upload dialog — reassembly needs all of them present."
+            )
     _extract_if_needed()
     os.environ["EHRSHOT_DATA_ROOT"] = str(EHRSHOT_DATA_ROOT)
     print(f"EHRSHOT_DATA_ROOT = {EHRSHOT_DATA_ROOT}")
