@@ -11,15 +11,18 @@ Two ways to get the dataset onto the VM's local disk:
    drag-and-drop pane) relay through a browser-to-VM connection that isn't
    built for sustained multi-GB transfers — files above roughly 1-2GB become
    unreliable. Of the 4 dataset files, only `EHRSHOT_ASSETS.zip` (4.3GB) is
-   actually a problem; the other three upload fine as-is. Split just that one
-   file into chunks first, on your own machine, not in Colab:
+   actually a problem; the other three upload fine as-is. Prep them first,
+   on your own machine, not in Colab:
 
-       python scripts/dismantle_data.py
+       python dismantle_data.py EHRSHOT_ASSETS.zip
 
-   Writes pieces into ./data-chunks/. Then upload all 4 files plus every
-   piece in one `files.upload()` call —
-   this function detects and reassembles any `*.part_*` files automatically.
-   Zero third-party storage touched, nothing to clean up after.
+   This writes one folder, ./data-chunks/, containing everything needed:
+   the split pieces plus copies of the other 3 files — the original
+   EHRSHOT_ASSETS.zip stays untouched outside it, deliberately, so there's
+   nothing to accidentally re-select. Upload the whole folder's contents in
+   one `files.upload()` call — this function detects and reassembles any
+   `*.part_*` files automatically. Zero third-party storage touched,
+   nothing to clean up after.
 2. `source_dir=` pointing at a mounted Google Drive folder used as a brief
    pass-through — kept as a fallback, not the default, given the extra
    workflow steps (mount, upload, wait, delete) and the DUA question it
@@ -79,11 +82,11 @@ def _prompt_upload(missing: list[str]) -> None:
     if "EHRSHOT_ASSETS.zip" in missing:
         print(
             "EHRSHOT_ASSETS.zip is 4.3GB — too large to upload as one file reliably.\n"
-            "Split it first, on your own machine, not in Colab:\n"
-            "  python scripts/dismantle_data.py\n"
-            "Writes pieces into ./data-chunks/. Then select ALL of: the other 3 "
-            "files + every piece in data-chunks/ in the dialog below "
-            "(multi-select). The parts get reassembled automatically."
+            "On your own machine, not in Colab:\n"
+            "  python dismantle_data.py EHRSHOT_ASSETS.zip\n"
+            "This writes ./data-chunks/ with everything you need. In the dialog "
+            "below, open that folder and select everything in it — nothing "
+            "outside it. The parts get reassembled automatically."
         )
     print("Select the files now (you can select multiple at once in the dialog).")
     uploaded = files.upload()

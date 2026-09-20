@@ -1,25 +1,45 @@
-"""Split EHRSHOT_ASSETS.zip into upload-sized chunks for Colab.
+"""Prepare the EHRSHOT dataset for upload to Colab: split the one file
+that's too large, and gather everything that needs uploading into one folder.
 
-Run this locally, wherever the dataset files live (not in Colab):
+Run this locally, wherever the dataset files live (not in Colab), from the
+same directory as the 4 dataset files:
 
     python scripts/dismantle_data.py
 
-Writes chunks into ./data-chunks/, e.g. EHRSHOT_ASSETS.zip.part_000,
-part_001, ... Only EHRSHOT_ASSETS.zip needs this — the other 3 dataset
-files are small enough to upload as-is. Reassembled automatically by
-ensure_ehrshot_data() in scripts/colab_setup.py after you upload the
-chunks plus the other 3 files in one multi-select.
+Writes ./data-chunks/, containing:
+  - EHRSHOT_ASSETS.zip.part_000, part_001, ... (the 4.3GB file, split into
+    pieces — the only one of the 4 files too large for Colab's upload
+    widget to handle reliably)
+  - copies of the other 3 dataset files, unchanged (small enough to upload
+    as-is, copied here just so everything needed lives in one folder)
 
-Pure Python, no dependency on the Unix `split` command — works the same
-on Windows, Mac, and Linux.
+The original EHRSHOT_ASSETS.zip is left untouched in place, deliberately
+outside data-chunks/ — so when you're selecting files to upload in Colab,
+there's exactly one folder to open, and the 4.3GB original (which would
+just hit the same upload problem again) is never sitting there to
+accidentally re-select.
+
+Reassembled automatically by ensure_ehrshot_data() in scripts/colab_setup.py
+once you upload everything in data-chunks/.
+
+Pure Python, no dependency on the Unix `split` command — works the same on
+Windows, Mac, and Linux.
 """
 
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 DEFAULT_CHUNK_SIZE_MB = 400  # comfortably under Colab's upload-widget reliability ceiling
+
+LARGE_FILE = "EHRSHOT_ASSETS.zip"
+SMALL_FILES = [
+    "EHRSHOT_MEDS.zip",
+    "meds_omop_ehrshot.tar.gz",
+    "meds_reader_omop_ehrshot.tar.gz",
+]
 
 
 def dismantle(source: Path, out_dir: Path, chunk_size_bytes: int) -> list[Path]:
@@ -39,13 +59,30 @@ def dismantle(source: Path, out_dir: Path, chunk_size_bytes: int) -> list[Path]:
     return parts
 
 
+def gather_small_files(source_dir: Path, out_dir: Path) -> list[str]:
+    """Copy the 3 small dataset files into out_dir alongside the split
+    pieces, so everything needed for upload lives in one folder. Returns
+    the names of any that weren't found (not fatal — you might run this
+    before downloading everything)."""
+    missing = []
+    for name in SMALL_FILES:
+        src = source_dir / name
+        if not src.exists():
+            missing.append(name)
+            continue
+        dest = out_dir / name
+        shutil.copy2(src, dest)
+        print(f"Copied {name} ({src.stat().st_size / 1e6:.1f} MB)")
+    return missing
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "source", nargs="?", default="EHRSHOT_ASSETS.zip", help="File to split"
+        "source", nargs="?", default=LARGE_FILE, help="Path to EHRSHOT_ASSETS.zip"
     )
     parser.add_argument(
-        "--out-dir", default="data-chunks", help="Where to write the pieces"
+        "--out-dir", default="data-chunks", help="Where to gather everything for upload"
     )
     parser.add_argument(
         "--chunk-size-mb", type=int, default=DEFAULT_CHUNK_SIZE_MB, help="Chunk size in MB"
@@ -55,13 +92,16 @@ def main() -> None:
     source = Path(args.source)
     if not source.exists():
         raise SystemExit(f"Not found: {source}")
+    out_dir = Path(args.out_dir)
 
-    parts = dismantle(source, Path(args.out_dir), args.chunk_size_mb * 1024 * 1024)
-    print(f"\nDone: {len(parts)} pieces in {args.out_dir}/")
-    print(
-        "Upload every piece in that folder, plus the other 3 dataset files, "
-        "in one multi-select when the Colab notebook prompts for upload."
-    )
+    parts = dismantle(source, out_dir, args.chunk_size_mb * 1024 * 1024)
+    missing = gather_small_files(source.parent, out_dir)
+
+    print(f"\nDone: {out_dir}/ contains {len(parts)} pieces of {source.name} "
+          f"+ {len(SMALL_FILES) - len(missing)}/{len(SMALL_FILES)} of the small files.")
+    if missing:
+        print(f"Not found next to {source}, add these to {out_dir}/ yourself: {missing}")
+    print(f"In Colab: open {out_dir}/ and select everything in it — nothing outside it.")
 
 
 if __name__ == "__main__":
