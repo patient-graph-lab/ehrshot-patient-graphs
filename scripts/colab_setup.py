@@ -87,7 +87,17 @@ def _copy_from_source(missing: list[str], source_dir: Path) -> None:
         print(f"Copying {name} ({size_gb:.2f} GB) from {source_dir}...")
         shutil.copy2(src, EHRSHOT_DATA_ROOT / name)
     if still_missing:
-        raise FileNotFoundError(f"Not found in {source_dir}: {still_missing}")
+        raise FileNotFoundError(
+            f"Not found in {source_dir}: {still_missing}\n\n"
+            "This is a manual step that happens outside this notebook, in a browser:\n"
+            "  1. Go to drive.google.com\n"
+            f"  2. In 'My Drive', create a folder named exactly '{source_dir.name}'\n"
+            "  3. Upload the missing file(s) into it\n"
+            "  4. Wait until Drive's UI shows the upload fully complete, not just started\n"
+            "  5. Re-run this cell\n"
+            "A Colab cell has no access to your device's filesystem — this upload can't "
+            "be done from code, only from Drive's own web/app interface."
+        )
 
 
 def delete_from_drive(source_dir: str | Path) -> None:
