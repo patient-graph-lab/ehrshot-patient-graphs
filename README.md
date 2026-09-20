@@ -67,34 +67,28 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 
 **Not here yet, on purpose:** `configs/`, `site/`, `docs/adr/`. Each one gets created with a single command the moment there's an actual file to put in it — `site/` when the Quarto build actually begins. An empty folder that exists only to look organized isn't worth the confusion of browsing past it with nothing in it.
 
-## Computation happens in Colab
+## Computation happens in Colab (current — may move to Redivis, see below)
 
-Project 1 is computed entirely in Colab — see `notebooks/README.md` for the bootstrap pattern every notebook uses. Nobody needs local compute for this; every notebook calls `ensure_ehrshot_data()` (`scripts/colab_setup.py`), which always resolves the dataset to the same fixed path (`~/EHRSHOT`) on the VM's local disk regardless of how it got there.
+Project 1 is computed in Colab for now — see `notebooks/README.md` for the bootstrap pattern every notebook uses. Every notebook calls `ensure_ehrshot_data()` (`scripts/colab_setup.py`), which always resolves the dataset to the same fixed path (`~/EHRSHOT`) on the VM's local disk.
 
-**How it gets there — two paths, one recommended:**
+**Google Drive is not an option, confirmed by Stanford's data stewards (Sep 20, 2026)** — general Drive doesn't meet their security requirements. The only supported path right now is a direct chunked upload that never touches any third-party storage:
 
 ```mermaid
 flowchart TD
-    A["Local machine<br/>4 EHRSHOT dataset files"] --> B{"How should the data<br/>reach the Colab VM?"}
-
-    B -->|"Recommended — fast<br/>(~90s on a good connection)"| C["Upload once to a private<br/>Google Drive folder<br/>(ehrshot_transfer)"]
-    B -->|"Fallback — zero third-party<br/>storage, but slow (hours)"| D["python dismantle_data.py<br/>splits the 4.3GB file locally<br/>into ./data-chunks/"]
-
-    C --> E["Colab: drive.mount()"]
-    D --> F["Colab: upload widget,<br/>select everything in<br/>data-chunks/"]
-
-    E --> G["ensure_ehrshot_data(<br/>source_dir=drive_folder)"]
-    F --> H["ensure_ehrshot_data()<br/>reassembles the pieces"]
-
-    G --> I["Extracted at ~/EHRSHOT<br/>on the VM's local disk"]
-    H --> I
-
-    I --> J["EHRSHOT_DATA_ROOT set —<br/>notebook ready to run"]
+    A["Local machine<br/>4 EHRSHOT dataset files"] --> B["python dismantle_data.py<br/>splits the 4.3GB file locally<br/>into ./data-chunks/"]
+    B --> C["Colab: upload widget,<br/>select everything in<br/>data-chunks/"]
+    C --> D["ensure_ehrshot_data()<br/>reassembles the pieces"]
+    D --> E["Extracted at ~/EHRSHOT<br/>on the VM's local disk"]
+    E --> F["EHRSHOT_DATA_ROOT set —<br/>notebook ready to run"]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
-    style I fill:#1a1a2e,stroke:#0f9b8e,color:#fff
-    style J fill:#1a1a2e,stroke:#0f9b8e,color:#fff
+    style E fill:#1a1a2e,stroke:#0f9b8e,color:#fff
+    style F fill:#1a1a2e,stroke:#0f9b8e,color:#fff
 ```
+
+Known cost: measured at a fixed ~4-5 Mbps regardless of actual bandwidth (a Colab upload-widget limitation, not a network one), so the full dataset takes hours per session — see `DATA_ACCESS.md`.
+
+**Stanford's actual recommendation is to skip Colab entirely and develop inside Redivis**, which hosts the data natively and supports "Colab-style notebooks and compute." This is under evaluation, not yet decided — see `DATA_ACCESS.md` for what's confirmed about Redivis's notebook environment and what's still open. If it pans out, the flowchart above gets a lot simpler: no transfer step needed at all.
 
 Both paths are fully implemented and tested (`tests/test_colab_setup.py`, `tests/test_dismantle_data.py`) — the choice is a tradeoff between speed and touching Google Drive at all, not a reliability difference. The Drive path does mean the dataset briefly touches Drive; see [`DATA_ACCESS.md`](DATA_ACCESS.md) for the reasoning and its current status (including whether the Drive copy is being auto-deleted right now — that's changed once already and may change again).
 

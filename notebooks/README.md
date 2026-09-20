@@ -51,22 +51,17 @@ if src_path not in sys.path:
 
 ## Loading the dataset — second cell, right after the bootstrap
 
+**Google Drive is not an option — confirmed disallowed by Stanford's data stewards, Sep 20, 2026** (general Drive doesn't meet their security requirements). Don't mount Drive or pass `source_dir` to `ensure_ehrshot_data()`; that parameter still exists in the code but must not be used — see [`DATA_ACCESS.md`](../DATA_ACCESS.md) for the full reply.
+
 ```python
-from google.colab import drive
 from scripts.colab_setup import ensure_ehrshot_data
 
-drive.mount("/content/drive")
-DRIVE_TRANSFER_DIR = "/content/drive/MyDrive/ehrshot_transfer"
-
-data_root = ensure_ehrshot_data(
-    checksums_path="data/checksums.txt",
-    source_dir=DRIVE_TRANSFER_DIR,  # recommended — ~100x faster than the fallback below
-)
+data_root = ensure_ehrshot_data(checksums_path="data/checksums.txt")
 ```
 
-Recommended path: upload the 4 dataset files to a Drive folder named `ehrshot_transfer` once, then this cell copies them to the VM's local disk. Measured ~90 seconds on a fast connection, vs. hours for the alternative below — Colab's direct-upload widget has a fixed low-throughput ceiling regardless of actual bandwidth. See [`DATA_ACCESS.md`](../DATA_ACCESS.md) for the DUA reasoning and current status of whether the Drive copy is being auto-deleted after each use (that's changed once already).
+This prompts an upload dialog with no `source_dir` given — the only supported path right now. On your own machine first, `python dismantle_data.py EHRSHOT_ASSETS.zip` (grab just that one file — no repo clone needed, it has no dependencies on the rest of this package) writes `./data-chunks/` with the large file split into pieces plus copies of the other 3 (only `EHRSHOT_ASSETS.zip` is too large to upload as-is). Select everything in `data-chunks/` in the dialog; the pieces reassemble automatically. **Known cost**: measured at a fixed ~4-5 Mbps regardless of actual bandwidth — hours per session for the full dataset, not minutes.
 
-**Zero-third-party-storage fallback**, if avoiding Drive matters more than speed: on your own machine, `python dismantle_data.py EHRSHOT_ASSETS.zip` (grab just that one file — no repo clone needed, it has no dependencies on the rest of this package) writes `./data-chunks/` with the large file split into pieces plus copies of the other 3. Then call `ensure_ehrshot_data(checksums_path="data/checksums.txt")` with **no** `source_dir` — it prompts an upload dialog; select everything in `data-chunks/`, and the pieces get reassembled automatically.
+**Stanford's actual recommendation is to skip Colab entirely and develop inside Redivis instead**, which hosts the data natively. Under evaluation, not yet decided — see `DATA_ACCESS.md` for what's confirmed and what's still open before assuming this Colab workflow is the long-term answer.
 
 That's it — after these two cells, `from ehrgraph.graphs import ...` works, and `EHRSHOT_DATA_ROOT` is set for the rest of the session. See `00_setup_and_sanity_check.ipynb` for the working version of both.
 
