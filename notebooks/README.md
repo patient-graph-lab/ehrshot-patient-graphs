@@ -12,13 +12,18 @@ Colab notebooks, one per visualization/analysis goal. All computation for Projec
 # Cell 1 — bootstrap (identical in every notebook in this repo)
 from google.colab import userdata
 token = userdata.get("GH_PAT")  # set once via the key icon in Colab's left sidebar — never type a token into a cell
-!git clone https://{token}@github.com/patient-graph-lab/ehrshot-patient-graphs.git
+
+BRANCH = "main"  # change this to test an unmerged branch/PR before it's merged
+
+!git clone --branch {BRANCH} https://{token}@github.com/patient-graph-lab/ehrshot-patient-graphs.git
 %cd ehrshot-patient-graphs
 !pip install -e ".[dev,data]"
 
 from scripts.colab_setup import ensure_ehrshot_data
 ensure_ehrshot_data(checksums_path="data/checksums.txt")
 ```
+
+**Opening the notebook from a specific branch in Colab's UI does not change what this cell clones** — that clone is a separate step, always pulls whatever `BRANCH` says, and defaults to `main` regardless of which branch you opened. Set `BRANCH` explicitly when testing an unmerged PR, or you'll silently get `main`'s code instead of the branch you meant to test.
 
 That's it — after this cell, `from ehrgraph.graphs import ...` works, and `EHRSHOT_DATA_ROOT` is set for the rest of the session. See `00_setup_and_sanity_check.ipynb` for the working version of this.
 
