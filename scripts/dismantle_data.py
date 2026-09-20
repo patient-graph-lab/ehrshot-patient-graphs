@@ -1,13 +1,15 @@
 """Prepare the EHRSHOT dataset for direct Colab upload: split the one file
 that's too large, and gather everything that needs uploading into one folder.
 
-This is the zero-third-party-storage fallback, not the recommended path —
-Colab's direct-upload paths cap out around 4-5 Mbps regardless of your
-actual bandwidth (measured Sep 20 on a 366 Mbps connection), so the full
-dataset takes hours even split into pieces. The Drive pass-through
-(source_dir= in ensure_ehrshot_data(), see scripts/colab_setup.py) is
-~100x faster on a fast connection. Use this script only if avoiding Drive
-entirely matters more than speed to you.
+This is the only supported way to get the dataset into Colab right now —
+Google Drive is confirmed disallowed by Stanford's data stewards as of
+Sep 20, 2026 (see DATA_ACCESS.md), so there is no faster alternative to
+fall back to at the moment. Colab's direct-upload paths cap out around
+4-5 Mbps regardless of your actual bandwidth (measured Sep 20 on a 366
+Mbps connection), so the full dataset takes hours even split into pieces.
+Stanford's actual recommendation is to develop inside Redivis instead of
+Colab, which would remove this problem entirely — see DATA_ACCESS.md for
+status before assuming this script is the long-term answer.
 
 Run this locally, wherever the dataset files live (not in Colab), from the
 same directory as the 4 dataset files:

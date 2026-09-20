@@ -4,30 +4,28 @@ Convention for this project: data always lives at ~/EHRSHOT, re-populated fresh
 every session, and never committed to git. Nothing about the dataset persists
 on the VM after the session ends — see DATA_ACCESS.md for why that matters.
 
-Two ways to get the dataset onto the VM's local disk:
+**Google Drive is NOT an option — confirmed disallowed by Stanford's data
+stewards, Sep 20, 2026** ("the general rule is to not store the data in
+Google Drive, since it doesn't meet our explicit requirements around
+security"). `source_dir=` / `delete_from_drive()` remain in this module
+only as inert, unused code — do not wire them back into a notebook's
+default flow. See DATA_ACCESS.md for the full reply and status.
 
-1. **Recommended: `source_dir=` pointing at a mounted Google Drive folder,
-   used as a brief pass-through.** Drive's own uploader is a real resumable
-   HTTP upload; Colab's direct-upload paths are not (see #2) — measured Sep
-   20 on a 366 Mbps connection: ~90 seconds via Drive vs. an estimated 2.5+
-   hours via direct upload for the full ~4.95GB dataset. Upload the 4 files
-   to a Drive folder once, then this function copies them to the VM's local
-   disk; call `delete_from_drive(source_dir)` immediately after — that's
-   what keeps it a brief pass-through rather than a standing copy. This
-   does mean the data touches Drive for a few minutes; see DATA_ACCESS.md
-   for the DUA reasoning behind why that's been judged acceptable.
-2. **Fallback (no `source_dir` given): chunked browser upload, zero
-   third-party storage touched.** Colab's upload paths (the
-   `files.upload()` widget, and the file-browser drag-and-drop pane) relay
-   through a base64-encoded message channel to the kernel — measured
-   throughput is roughly 4-5 Mbps *regardless of actual bandwidth or VM
-   RAM*, so a multi-GB dataset takes hours even on a fast connection. Of
-   the 4 dataset files, only `EHRSHOT_ASSETS.zip` (4.3GB) needs splitting
-   first — `python dismantle_data.py EHRSHOT_ASSETS.zip` writes
-   `./data-chunks/` with the pieces plus copies of the other 3 files, then
-   upload that whole folder's contents in one `files.upload()` call; this
-   function detects and reassembles any `*.part_*` files automatically.
-   Use this only if avoiding Drive entirely matters more than speed.
+The only supported path right now: **chunked browser upload, zero
+third-party storage touched.** Colab's upload paths (the
+`files.upload()` widget, and the file-browser drag-and-drop pane) relay
+through a base64-encoded message channel to the kernel — measured
+throughput is roughly 4-5 Mbps *regardless of actual bandwidth or VM
+RAM*, so the full dataset takes hours even on a fast connection. Of the 4
+dataset files, only `EHRSHOT_ASSETS.zip` (4.3GB) needs splitting first —
+`python dismantle_data.py EHRSHOT_ASSETS.zip` writes `./data-chunks/`
+with the pieces plus copies of the other 3 files, then upload that whole
+folder's contents in one `files.upload()` call; this function detects and
+reassembles any `*.part_*` files automatically.
+
+Stanford's actual recommendation is to skip Colab entirely and develop
+inside Redivis instead, which hosts the data natively — see DATA_ACCESS.md
+for status; this may replace the whole Colab-based flow described here.
 
 Usage, as the first real cell of any notebook (after cloning the repo and
 running `pip install -e ".[dev,data]"`):
@@ -112,6 +110,9 @@ def _reassemble_chunks() -> None:
                 p.unlink()
 
 
+# DISALLOWED as of Sep 20, 2026 (see DATA_ACCESS.md) -- kept only because
+# ensure_ehrshot_data's source_dir parameter still exists for the signature.
+# Do not call this. Do not wire it back into a notebook's default flow.
 def _copy_from_source(missing: list[str], source_dir: Path) -> None:
     still_missing = []
     for name in missing:
@@ -137,10 +138,10 @@ def _copy_from_source(missing: list[str], source_dir: Path) -> None:
 
 
 def delete_from_drive(source_dir: str | Path) -> None:
-    """Remove the dataset files from the Drive pass-through directory once
-    ensure_ehrshot_data(source_dir=...) has confirmed they're copied to the
-    VM's local disk. Call this right after — it's what makes the Drive
-    exposure brief rather than a standing copy."""
+    """DISALLOWED as of Sep 20, 2026 -- Drive is not an approved storage
+    location at all, see DATA_ACCESS.md. Kept only as a one-time cleanup
+    utility for anyone who still has a standing copy from before this was
+    confirmed: mount Drive, call this, then empty Drive's Trash too."""
     source_dir = Path(source_dir)
     for name in EXPECTED_FILES:
         f = source_dir / name
@@ -196,10 +197,10 @@ def ensure_ehrshot_data(
     """Make sure ~/EHRSHOT has the dataset, extract it if needed, and set
     EHRSHOT_DATA_ROOT for the rest of the session. Returns the resolved path.
 
-    Recommended: pass `source_dir` (e.g. a mounted Drive folder) — copies
-    missing files from there, ~100x faster than the alternative (see module
-    docstring). Without it, falls back to a chunked browser upload prompt
-    (zero third-party storage touched, but slow regardless of bandwidth).
+    Call with no arguments other than checksums_path. `source_dir` (Drive
+    pass-through) is disallowed as of Sep 20, 2026 — Stanford confirmed
+    Google Drive doesn't meet their security requirements for this data.
+    The code path still exists but must not be used; see DATA_ACCESS.md.
     """
     EHRSHOT_DATA_ROOT.mkdir(exist_ok=True)
     missing = [f for f in EXPECTED_FILES if not (EHRSHOT_DATA_ROOT / f).exists()]
