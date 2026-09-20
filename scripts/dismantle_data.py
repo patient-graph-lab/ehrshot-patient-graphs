@@ -1,5 +1,13 @@
-"""Prepare the EHRSHOT dataset for upload to Colab: split the one file
+"""Prepare the EHRSHOT dataset for direct Colab upload: split the one file
 that's too large, and gather everything that needs uploading into one folder.
+
+This is the zero-third-party-storage fallback, not the recommended path —
+Colab's direct-upload paths cap out around 4-5 Mbps regardless of your
+actual bandwidth (measured Sep 20 on a 366 Mbps connection), so the full
+dataset takes hours even split into pieces. The Drive pass-through
+(source_dir= in ensure_ehrshot_data(), see scripts/colab_setup.py) is
+~100x faster on a fast connection. Use this script only if avoiding Drive
+entirely matters more than speed to you.
 
 Run this locally, wherever the dataset files live (not in Colab), from the
 same directory as the 4 dataset files:

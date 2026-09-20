@@ -6,30 +6,28 @@ on the VM after the session ends — see DATA_ACCESS.md for why that matters.
 
 Two ways to get the dataset onto the VM's local disk:
 
-1. **Default (no `source_dir` given): chunked browser upload.** Colab's
-   upload paths (the `files.upload()` widget, and the file-browser
-   drag-and-drop pane) relay through a browser-to-VM connection that isn't
-   built for sustained multi-GB transfers — files above roughly 1-2GB become
-   unreliable. Of the 4 dataset files, only `EHRSHOT_ASSETS.zip` (4.3GB) is
-   actually a problem; the other three upload fine as-is. Prep them first,
-   on your own machine, not in Colab:
-
-       python dismantle_data.py EHRSHOT_ASSETS.zip
-
-   This writes one folder, ./data-chunks/, containing everything needed:
-   the split pieces plus copies of the other 3 files — the original
-   EHRSHOT_ASSETS.zip stays untouched outside it, deliberately, so there's
-   nothing to accidentally re-select. Upload the whole folder's contents in
-   one `files.upload()` call — this function detects and reassembles any
-   `*.part_*` files automatically. Zero third-party storage touched,
-   nothing to clean up after.
-2. `source_dir=` pointing at a mounted Google Drive folder used as a brief
-   pass-through — kept as a fallback, not the default, given the extra
-   workflow steps (mount, upload, wait, delete) and the DUA question it
-   raises (see DATA_ACCESS.md) that the chunked-upload path above avoids
-   entirely. Drive's own uploader is a real resumable upload; this function
-   copies from Drive to the VM's local disk, then call
-   `delete_from_drive(source_dir)` immediately after.
+1. **Recommended: `source_dir=` pointing at a mounted Google Drive folder,
+   used as a brief pass-through.** Drive's own uploader is a real resumable
+   HTTP upload; Colab's direct-upload paths are not (see #2) — measured Sep
+   20 on a 366 Mbps connection: ~90 seconds via Drive vs. an estimated 2.5+
+   hours via direct upload for the full ~4.95GB dataset. Upload the 4 files
+   to a Drive folder once, then this function copies them to the VM's local
+   disk; call `delete_from_drive(source_dir)` immediately after — that's
+   what keeps it a brief pass-through rather than a standing copy. This
+   does mean the data touches Drive for a few minutes; see DATA_ACCESS.md
+   for the DUA reasoning behind why that's been judged acceptable.
+2. **Fallback (no `source_dir` given): chunked browser upload, zero
+   third-party storage touched.** Colab's upload paths (the
+   `files.upload()` widget, and the file-browser drag-and-drop pane) relay
+   through a base64-encoded message channel to the kernel — measured
+   throughput is roughly 4-5 Mbps *regardless of actual bandwidth or VM
+   RAM*, so a multi-GB dataset takes hours even on a fast connection. Of
+   the 4 dataset files, only `EHRSHOT_ASSETS.zip` (4.3GB) needs splitting
+   first — `python dismantle_data.py EHRSHOT_ASSETS.zip` writes
+   `./data-chunks/` with the pieces plus copies of the other 3 files, then
+   upload that whole folder's contents in one `files.upload()` call; this
+   function detects and reassembles any `*.part_*` files automatically.
+   Use this only if avoiding Drive entirely matters more than speed.
 
 Usage, as the first real cell of any notebook (after cloning the repo and
 running `pip install -e ".[dev,data]"`):
@@ -198,10 +196,10 @@ def ensure_ehrshot_data(
     """Make sure ~/EHRSHOT has the dataset, extract it if needed, and set
     EHRSHOT_DATA_ROOT for the rest of the session. Returns the resolved path.
 
-    Default: prompts a chunked browser upload (see module docstring — split
-    EHRSHOT_ASSETS.zip first, everything else uploads as-is). If `source_dir`
-    is given (e.g. a mounted Drive folder), copies missing files from there
-    instead — a fallback, not the default; see the module docstring.
+    Recommended: pass `source_dir` (e.g. a mounted Drive folder) — copies
+    missing files from there, ~100x faster than the alternative (see module
+    docstring). Without it, falls back to a chunked browser upload prompt
+    (zero third-party storage touched, but slow regardless of bandwidth).
     """
     EHRSHOT_DATA_ROOT.mkdir(exist_ok=True)
     missing = [f for f in EXPECTED_FILES if not (EHRSHOT_DATA_ROOT / f).exists()]
