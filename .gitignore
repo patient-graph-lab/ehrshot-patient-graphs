@@ -52,6 +52,16 @@ site/.quarto/
 paper/*.pdf
 paper/*_files/
 
+# R (r-viz/) -- renv.lock is committed for reproducibility, its local library is not
+r-viz/renv/library/
+r-viz/renv/staging/
+r-viz/renv/python/
+r-viz/.Rproj.user/
+r-viz/.Rhistory
+r-viz/.RData
+
 # OS / editor
 .DS_Store
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

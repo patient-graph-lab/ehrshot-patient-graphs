@@ -20,7 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 data = ["meds_reader"]
 gnn = ["torch", "torch_geometric"]
-dev = ["ruff", "pytest", "pre-commit", "nbstripout"]
+dev = ["ruff", "pytest", "pre-commit", "nbstripout", "jupyter", "ipykernel"]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

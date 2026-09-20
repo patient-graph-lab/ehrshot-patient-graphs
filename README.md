@@ -50,57 +50,68 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 ├── tests/
 │   └── test_smoke.py          confirms the package imports; real tests land as graphs/censoring get built
 ├── scripts/
-│   ├── colab_setup.py         gets the dataset onto the Colab VM (Drive or direct upload), sets EHRSHOT_DATA_ROOT
-│   └── dismantle_data.py      splits EHRSHOT_ASSETS.zip for the direct-upload fallback (see below)
+│   ├── local_setup.py         current default — extracts from ~/ehrshot-data/, sets EHRSHOT_DATA_ROOT
+│   ├── colab_setup.py         Colab fallback (Drive or direct upload), kept tested but not primary
+│   └── dismantle_data.py      splits EHRSHOT_ASSETS.zip, only needed for the Colab direct-upload fallback
 ├── notebooks/                 Project 1 computation happens here — see notebooks/README.md
+├── r-viz/                     R + ggplot2, final report figures only — reads results/aggregate/ exclusively
 ├── data/
 │   ├── README.md              committed — points to DATA_ACCESS.md
 │   └── checksums.txt          committed — sha256 of the expected dataset files, so two people can confirm
 │                               they have the same version without transmitting the data
 ├── results/
-│   ├── aggregate/             committed — metrics/figures only, the sole input to the public site
+│   ├── aggregate/             committed — metrics/figures only, the sole input to the public site and r-viz/
 │   └── per_patient/           gitignored — never committed, ever
-├── .gitignore  .pre-commit-config.yaml
+├── .gitignore  .pre-commit-config.yaml  .vscode/
 ├── LICENSE  DATA_ACCESS.md  CITATION.cff
-├── pyproject.toml  Makefile
+├── pyproject.toml  uv.lock  Makefile
 ```
 
 **Not here yet, on purpose:** `configs/`, `site/`, `docs/adr/`. Each one gets created with a single command the moment there's an actual file to put in it — `site/` when the Quarto build actually begins. An empty folder that exists only to look organized isn't worth the confusion of browsing past it with nothing in it.
 
-## Computation happens in Colab (current — may move to Redivis, see below)
+## Computation happens locally (current — Colab/Redivis kept as fallback)
 
-Project 1 is computed in Colab for now — see `notebooks/README.md` for the bootstrap pattern every notebook uses. Every notebook calls `ensure_ehrshot_data()` (`scripts/colab_setup.py`), which always resolves the dataset to the same fixed path (`~/EHRSHOT`) on the VM's local disk.
+Project 1 runs entirely on your own machine now. The original plan routed everything through Colab specifically because of an assumption ("not enough local compute") that turned out to be wrong — a normal laptop (confirmed: 8 threads, 32GB RAM) handles this comfortably; the graphs here top out around ~3,800 nodes.
 
-**Google Drive is not an option, confirmed by Stanford's data stewards (Sep 20, 2026)** — general Drive doesn't meet their security requirements. The only supported path right now is a direct chunked upload that never touches any third-party storage:
+**Setup, one time:**
 
 ```mermaid
 flowchart TD
-    A["Local machine<br/>4 EHRSHOT dataset files"] --> B["python dismantle_data.py<br/>splits the 4.3GB file locally<br/>into ./data-chunks/"]
-    B --> C["Colab: upload widget,<br/>select everything in<br/>data-chunks/"]
-    C --> D["ensure_ehrshot_data()<br/>reassembles the pieces"]
-    D --> E["Extracted at ~/EHRSHOT<br/>on the VM's local disk"]
-    E --> F["EHRSHOT_DATA_ROOT set —<br/>notebook ready to run"]
+    A["git clone this repo"] --> B["uv sync --extra dev --extra data"]
+    B --> C["Download EHRSHOT_ASSETS.zip<br/>(+ the other 3 archives if you<br/>want direct meds_reader access)<br/>to ~/ehrshot-data/"]
+    C --> D["from scripts.local_setup<br/>import ensure_local_data<br/>data_root = ensure_local_data()"]
+    D --> E["Extracts what's needed,<br/>sets EHRSHOT_DATA_ROOT"]
+    E --> F["Open notebooks/*.ipynb<br/>in VS Code or jupyter notebook"]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
     style E fill:#1a1a2e,stroke:#0f9b8e,color:#fff
     style F fill:#1a1a2e,stroke:#0f9b8e,color:#fff
 ```
 
-Known cost: measured at a fixed ~4-5 Mbps regardless of actual bandwidth (a Colab upload-widget limitation, not a network one), so the full dataset takes hours per session — see `DATA_ACCESS.md`.
+Every notebook's first cell calls `ensure_local_data()` (`scripts/local_setup.py`) — no Drive, no upload widget, no waiting. `meds_reader` itself installs and runs cleanly on Linux/macOS (confirmed Sep 20) — if it ever doesn't on your setup, that's the one thing worth flagging early.
 
-**Stanford's actual recommendation is to skip Colab entirely and develop inside Redivis**, which hosts the data natively and supports "Colab-style notebooks and compute." This is under evaluation, not yet decided — see `DATA_ACCESS.md` for what's confirmed about Redivis's notebook environment and what's still open. If it pans out, the flowchart above gets a lot simpler: no transfer step needed at all.
+**Colab is not gone, just demoted.** `scripts/colab_setup.py` and `scripts/dismantle_data.py` still work and are still tested (`tests/test_colab_setup.py`, `tests/test_dismantle_data.py`) — useful if local compute is ever genuinely insufficient (a serious Project 2 GNN sweep, maybe). See `notebooks/README.md` for that path. Redivis is still a live open question (issue #23) but no longer something Project 1 is waiting on.
 
-Both paths are fully implemented and tested (`tests/test_colab_setup.py`, `tests/test_dismantle_data.py`) — the choice is a tradeoff between speed and touching Google Drive at all, not a reliability difference. The Drive path does mean the dataset briefly touches Drive; see [`DATA_ACCESS.md`](DATA_ACCESS.md) for the reasoning and its current status (including whether the Drive copy is being auto-deleted right now — that's changed once already and may change again).
+**The DUA rules are unchanged by any of this** — local, Colab, or Redivis, the data still never gets committed, never gets exposed publicly, and only aggregate output leaves this machine at all. See [`DATA_ACCESS.md`](DATA_ACCESS.md).
 
 ## Install
 
 ```bash
 git clone https://github.com/patient-graph-lab/ehrshot-patient-graphs.git
 cd ehrshot-patient-graphs
-pip install -e ".[dev]"
-pre-commit install
-export EHRSHOT_DATA_ROOT=/path/to/your/local/copy
+uv sync --extra dev --extra data      # installs everything, including meds_reader + jupyter
+uv run pre-commit install
+uv run python -m ipykernel install --user --name ehrshot-patient-graphs
 ```
+
+Then, in any notebook, the first cell is always:
+
+```python
+from scripts.local_setup import ensure_local_data
+data_root = ensure_local_data()   # extracts from ~/ehrshot-data/, sets EHRSHOT_DATA_ROOT
+```
+
+VS Code: open the repo folder, install the recommended extensions when prompted (Python, Jupyter, R — already listed in `.vscode/extensions.json`), select the `.venv` interpreter, and notebooks just work. For the R visualization step, see `r-viz/README.md`.
 
 ## Working on this repo
 
