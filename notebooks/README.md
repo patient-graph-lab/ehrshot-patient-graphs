@@ -11,6 +11,7 @@ Colab notebooks, one per visualization/analysis goal. All computation for Projec
 ```python
 # Cell 1 — bootstrap (identical in every notebook in this repo)
 import os
+import sys
 from google.colab import userdata
 token = userdata.get("GH_PAT")  # set once via the key icon in Colab's left sidebar — never type a token into a cell
 
@@ -31,11 +32,22 @@ else:
     os.chdir(REPO_DIR)
 
 !pip install -e ".[dev,data]"
+
+# pip install -e . registers the package via a .pth file, which Python only
+# reads at interpreter startup. Reinstalling into an already-running kernel
+# succeeds on disk -- "Successfully installed ehrgraph-0.1.0" -- but
+# "import ehrgraph" still fails until the kernel restarts, since the running
+# interpreter never re-scans for new sys.path entries. Adding src/ directly
+# sidesteps that: takes effect immediately, whether this is a fresh VM or a
+# rerun, no restart needed.
+src_path = os.path.join(os.getcwd(), "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 ```
 
 **Opening the notebook from a specific branch in Colab's UI does not change what this cell clones** — that clone is a separate step, always pulls whatever `BRANCH` says, and defaults to `main` regardless of which branch you opened. Set `BRANCH` explicitly when testing an unmerged PR. And because Colab sessions often get reused across multiple "Run all"s without an actual VM restart, the cell above is written to detect an existing checkout and reset it to `BRANCH`'s latest commit rather than silently keeping stale code — don't simplify this back to a bare `git clone`.
 
-**If `import ehrgraph` fails with `ModuleNotFoundError` later in the notebook**, this cell didn't actually run in the *currently active* kernel — common after a runtime reconnect, or if you jumped to a later cell without re-running from the top. Data already sitting on disk survives a kernel reconnect (it's just files); the installed package does not (that's kernel state). Fix: re-run this cell, then continue down — it's idempotent, safe to re-run any time.
+**If `import ehrgraph` fails with `ModuleNotFoundError` later in the notebook** despite this cell reporting a successful install, it's one of two things: (1) this cell didn't actually run in the *currently active* kernel — common after a runtime reconnect, or jumping to a later cell without re-running from the top; data on disk survives a reconnect, installed-package state doesn't. Fix: re-run this cell. (2) The `sys.path` fix above wasn't in the version of this cell that ran — an older editable-install-only version of this cell needs an actual **Runtime → Restart session** after `pip install`, since Python only reads the `.pth` file at interpreter startup.
 
 ## Loading the dataset — second cell, right after the bootstrap
 
