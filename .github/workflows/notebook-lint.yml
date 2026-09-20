@@ -2,6 +2,14 @@ name: notebook-lint
 
 # Checks notebooks WITHOUT executing them against real data — this runner has
 # no access to EHRSHOT_DATA_ROOT, by design. See DATA_ACCESS.md.
+#
+# Code-cell linting itself is NOT done here — ruff has native Jupyter
+# notebook support and already lints notebooks correctly, cell-by-cell, as
+# part of `ruff check .` in ci.yml. It used to also run here via nbqa, which
+# flattens a notebook into one linear script before linting and falsely
+# flags every import after the first cell as "not at top of file" — normal,
+# expected notebook style, not a real problem. Removed rather than worked
+# around.
 
 on:
   pull_request:
@@ -27,13 +35,3 @@ jobs:
             exit 0
           fi
           nbstripout --verify "${nbs[@]}"
-
-      - name: Lint notebook code cells with ruff
-        run: |
-          shopt -s nullglob
-          nbs=(notebooks/*.ipynb)
-          if [ ${#nbs[@]} -eq 0 ]; then
-            echo "No notebooks yet."
-            exit 0
-          fi
-          nbqa ruff notebooks

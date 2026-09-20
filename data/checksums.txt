@@ -1,5 +1,7 @@
 # sha256 checksums of the expected EHRSHOT asset files, so two collaborators can confirm
 # they have the same dataset version without either of them transmitting the data itself.
-#
-# Fill these in once confirmed, e.g.:
-#   sha256sum EHRSHOT_ASSETS.zip EHRSHOT_MEDS.zip meds_omop_ehrshot.tar.gz meds_reader_omop_ehrshot.tar.gz
+# Verified against a real downloaded copy, Sep 20, 2026.
+55850cfe42b7df36d867f28685b7532c8c576c8e0ed2a33e25ad0a45cc942dca  EHRSHOT_ASSETS.zip
+c77d97db173dd98bf691e70e8d201ef808c62ca18595040ea589b48e9a2b779d  EHRSHOT_MEDS.zip
+cc7f92c6df815c33de9232bdea5509b447d9414c6e958005d31e61d74bd80e6f  meds_omop_ehrshot.tar.gz
+3d4646578c5c69ce4972d2e795c0b7d10b0d93745a50a9f70d91b54e7bea4e68  meds_reader_omop_ehrshot.tar.gz

@@ -50,7 +50,8 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 ├── tests/
 │   └── test_smoke.py          confirms the package imports; real tests land as graphs/censoring get built
 ├── scripts/
-│   └── colab_setup.py         prompts for the dataset upload each Colab session, sets EHRSHOT_DATA_ROOT
+│   ├── colab_setup.py         gets the dataset onto the Colab VM (Drive or direct upload), sets EHRSHOT_DATA_ROOT
+│   └── dismantle_data.py      splits EHRSHOT_ASSETS.zip for the direct-upload fallback (see below)
 ├── notebooks/                 Project 1 computation happens here — see notebooks/README.md
 ├── data/
 │   ├── README.md              committed — points to DATA_ACCESS.md
@@ -68,7 +69,34 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 
 ## Computation happens in Colab
 
-Project 1 is computed entirely in Colab — see `notebooks/README.md` for the bootstrap pattern every notebook uses. Nobody needs local compute for this; the data itself is re-uploaded fresh each session (never persisted to Drive, never committed) via `scripts/colab_setup.py`, which always looks for it at a fixed path (`~/EHRSHOT`) so every notebook works the same way without per-session setup.
+Project 1 is computed entirely in Colab — see `notebooks/README.md` for the bootstrap pattern every notebook uses. Nobody needs local compute for this; every notebook calls `ensure_ehrshot_data()` (`scripts/colab_setup.py`), which always resolves the dataset to the same fixed path (`~/EHRSHOT`) on the VM's local disk regardless of how it got there.
+
+**How it gets there — two paths, one recommended:**
+
+```mermaid
+flowchart TD
+    A["Local machine<br/>4 EHRSHOT dataset files"] --> B{"How should the data<br/>reach the Colab VM?"}
+
+    B -->|"Recommended — fast<br/>(~90s on a good connection)"| C["Upload once to a private<br/>Google Drive folder<br/>(ehrshot_transfer)"]
+    B -->|"Fallback — zero third-party<br/>storage, but slow (hours)"| D["python dismantle_data.py<br/>splits the 4.3GB file locally<br/>into ./data-chunks/"]
+
+    C --> E["Colab: drive.mount()"]
+    D --> F["Colab: upload widget,<br/>select everything in<br/>data-chunks/"]
+
+    E --> G["ensure_ehrshot_data(<br/>source_dir=drive_folder)"]
+    F --> H["ensure_ehrshot_data()<br/>reassembles the pieces"]
+
+    G --> I["Extracted at ~/EHRSHOT<br/>on the VM's local disk"]
+    H --> I
+
+    I --> J["EHRSHOT_DATA_ROOT set —<br/>notebook ready to run"]
+
+    style A fill:#1a1a2e,stroke:#e94560,color:#fff
+    style I fill:#1a1a2e,stroke:#0f9b8e,color:#fff
+    style J fill:#1a1a2e,stroke:#0f9b8e,color:#fff
+```
+
+Both paths are fully implemented and tested (`tests/test_colab_setup.py`, `tests/test_dismantle_data.py`) — the choice is a tradeoff between speed and touching Google Drive at all, not a reliability difference. The Drive path does mean the dataset briefly touches Drive; see [`DATA_ACCESS.md`](DATA_ACCESS.md) for the reasoning and its current status (including whether the Drive copy is being auto-deleted right now — that's changed once already and may change again).
 
 ## Install
 
