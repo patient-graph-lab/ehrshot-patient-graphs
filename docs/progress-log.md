@@ -67,3 +67,21 @@ Also added an optional `table` field (default None, backward compatible) to the 
 **Verification:** `ruff check .` clean, `pytest -q` passing 31/31 (all synthetic-fixture based, no real data in CI). Notebook executed end-to-end via `jupyter nbconvert --execute` against the real full official dataset—zero errors, all assertions passed (patient/positive counts matched PROJECT_GUIDE.md exactly), 100% concept-name match rate across all distinct condition codes in both cohorts, 100% CLMBR-embedding join rate. Notebook outputs stripped via nbstripout before commit. PR #26 opened, all 3 CI checks (lint-and-test, lint-notebooks, no-data-committed) passing. No new dependencies—everything used (pandas, networkx, scikit-learn, matplotlib) was already in pyproject.toml.
 
 **Follow-ups / open questions:** None blocking—ready to merge. Issue #4 (build_patient_vectors) can now proceed knowing the correct node identity is (patient_id, prediction_time).
+
+---
+
+## #4 — Implement patient vectorization module
+**Date:** 2026-09-21 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/27 · **Branch:** issue-4-patient-vectorization
+
+**What happened:** Implemented `build_patient_vectors(db, subject_ids, table, weighting, dedup, rollup)` in a new module `ehrgraph.graphs.vectorize`—the critical step between raw patient event data and graph construction, turning each patient's medical-code history into a numeric vector. The function deliberately supports two independent configuration axes (weighting: binary/count/count_normalized, and dedup: per_occurrence/per_visit/per_patient) rather than one locked pipeline, enabling systematic robustness checks. This session proved that binary weighting is mathematically dedup-invariant by construction (verified both via unit test on synthetic fixtures and re-check against the real 3,850-patient guo_los cohort). Built and fully executed `notebooks/03_patient_vectorization.ipynb` end-to-end against the real official dataset, running all 9 (weighting, dedup) combinations and per-relation-type vectorization (condition, drug_exposure, procedure separately), catching a genuine meds_reader bug in the process (Event.table uses internal names like "procedure", not "procedure_occurrence").
+
+**Code and packages touched:**
+- `src/ehrgraph/graphs/vectorize.py` (new) — build_patient_vectors and WEIGHTINGS/DEDUPS constants
+- `src/ehrgraph/data/loader.py` — added optional `visit_id` field to `Event` dataclass (backward compatible)
+- `tests/fixtures/make_synthetic.py` — added `cohort_for_vectorization()` fixture for dedup and rollup testing
+- `tests/test_vectorize.py` (new) — 12 synthetic-fixture-based tests
+- `notebooks/03_patient_vectorization.ipynb` (new) — end-to-end real-data verification of all 9 combinations and per-relation-type check
+
+**Verification:** `ruff check .` clean, `pytest -q` passing 43/43. Notebook executed end-to-end twice via `jupyter nbconvert --execute` against the real full official dataset—zero errors both times. Real matrix sizes confirmed: condition (3850 patients x 16,263 codes, 277,926 nonzero), drug_exposure (3850 x 5,407, 294,749 nonzero), procedure (3850 x 9,087, 189,095 nonzero) after table-name bug fix. Notebook outputs stripped via nbstripout before commit. PR #27 opened, all 3 CI checks passing.
+
+**Follow-ups / open questions:** Building a real concept_ancestor-derived rollup map (ontology-aware similarity robustness check) is separate follow-up work, listed in PROJECT_GUIDE.md's "Can improve" section—not blocking. Issue #5 (bipartite patient-code graph, TF-IDF/cosine projection, mutual k-NN sparsify) can now proceed using this module's output.
