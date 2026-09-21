@@ -1,8 +1,11 @@
+from datetime import datetime
+
 import numpy as np
 import pytest
 
-from ehrgraph.graphs.vectorize import build_patient_vectors
-from tests.fixtures.make_synthetic import cohort_for_vectorization
+from ehrgraph.data.loader import Event
+from ehrgraph.graphs.vectorize import build_node_vectors, build_patient_vectors
+from tests.fixtures.make_synthetic import FakeDatabase, FakeSubject, cohort_for_vectorization
 
 
 def _value(matrix, patient_ids, codes, patient_id, code):
@@ -119,3 +122,59 @@ def test_matrix_shape_matches_subjects_and_codes():
     matrix, pids, codes = build_patient_vectors(db, [10, 11, 12], table="condition")
     assert matrix.shape == (len(pids), len(codes))
     assert pids == [10, 11, 12]
+
+
+def _cohort_with_two_admissions() -> FakeDatabase:
+    """One patient with a condition before AND after a point in time
+    between their two admissions -- for testing build_node_vectors'
+    per-node censoring and multi-node-per-patient behavior."""
+    return FakeDatabase(
+        {
+            20: FakeSubject(
+                20,
+                [
+                    Event(time=datetime(2020, 1, 1), code="A", table="condition"),
+                    Event(time=datetime(2020, 6, 1), code="B", table="condition"),
+                ],
+            )
+        }
+    )
+
+
+def test_build_node_vectors_censors_per_node_not_per_patient():
+    db = _cohort_with_two_admissions()
+    # same patient, two different admissions/prediction_times
+    nodes = [(20, datetime(2020, 3, 1)), (20, datetime(2020, 12, 1))]
+    matrix, node_order, codes = build_node_vectors(
+        db, nodes, table="condition", censor=True, weighting="binary"
+    )
+    assert node_order == nodes
+    early_row = matrix.getrow(0).toarray().flatten()
+    late_row = matrix.getrow(1).toarray().flatten()
+    # as of March, only "A" (Jan) had happened yet -- "B" (June) hasn't
+    assert early_row[codes.index("A")] == 1
+    assert "B" not in codes or early_row[codes.index("B")] == 0
+    # as of December, both had happened
+    assert late_row[codes.index("A")] == 1
+    assert late_row[codes.index("B")] == 1
+
+
+def test_build_node_vectors_leaky_ignores_prediction_time():
+    db = _cohort_with_two_admissions()
+    nodes = [(20, datetime(2020, 3, 1))]  # before "B" ever happened
+    matrix, _, codes = build_node_vectors(
+        db, nodes, table="condition", censor=False, weighting="binary"
+    )
+    row = matrix.getrow(0).toarray().flatten()
+    # censor=False (events_all) ignores prediction_time entirely -- "B"
+    # from June shows up even though this node's prediction_time is March
+    assert row[codes.index("A")] == 1
+    assert row[codes.index("B")] == 1
+
+
+def test_build_node_vectors_same_patient_can_appear_twice():
+    db = _cohort_with_two_admissions()
+    nodes = [(20, datetime(2020, 3, 1)), (20, datetime(2020, 12, 1))]
+    matrix, node_order, _ = build_node_vectors(db, nodes, table="condition", censor=True)
+    assert matrix.shape[0] == 2
+    assert [n[0] for n in node_order] == [20, 20]

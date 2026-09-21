@@ -1,7 +1,18 @@
 from datetime import datetime
 
+import networkx as nx
+
 from ehrgraph.data.loader import events_all, events_before
-from tests.fixtures.make_synthetic import subject_with_events_around
+from ehrgraph.graphs.null_model import build_null_graph
+from ehrgraph.graphs.similarity import (
+    cosine_similarity_matrix,
+    mutual_knn,
+    to_networkx,
+    to_tfidf,
+    top_k_sparsify,
+)
+from ehrgraph.graphs.vectorize import build_node_vectors
+from tests.fixtures.make_synthetic import cohort_for_vectorization, subject_with_events_around
 
 
 def test_events_before_excludes_boundary_and_future():
@@ -34,3 +45,34 @@ def test_events_before_property_no_future_event_ever_included():
     for cutoff in [datetime(2019, 1, 1), datetime(2020, 6, 1), datetime(2021, 6, 1)]:
         result = events_before(subject, cutoff)
         assert all(e.time < cutoff for e in result)
+
+
+def _build_graph(nodes, db, censor: bool, seed: int) -> nx.Graph:
+    """The real safe/leaky graph-construction pipeline (issues #4-#8), run
+    end to end on a synthetic cohort -- used here purely to check
+    determinism, not correctness (that's covered elsewhere per-stage)."""
+    matrix, node_order, _ = build_node_vectors(
+        db, nodes, table="condition", censor=censor, weighting="binary", dedup="per_patient"
+    )
+    sim = cosine_similarity_matrix(to_tfidf(matrix))
+    graph = to_networkx(mutual_knn(top_k_sparsify(sim, k=2)), node_order)
+    return build_null_graph(graph, seed=seed)
+
+
+def test_determinism_same_seed_gives_identical_graph_hash():
+    """The last of issue #9's four tests, closed out now that issues #6-#8
+    (the real safe/leaky/null graph pipeline) exist to hash. Same inputs
+    and same seed must produce byte-for-byte the same graph -- if this
+    ever flakes, something in the pipeline picked up hidden randomness
+    (unordered set/dict iteration, an unseeded RNG call, etc.), and every
+    result downstream would be unreproducible."""
+    db = cohort_for_vectorization()
+    today = datetime(2024, 1, 1)
+    nodes = [(10, today), (11, today), (12, today)]
+
+    graph_a = _build_graph(nodes, db, censor=True, seed=7)
+    graph_b = _build_graph(nodes, db, censor=True, seed=7)
+
+    hash_a = nx.weisfeiler_lehman_graph_hash(graph_a, edge_attr="weight")
+    hash_b = nx.weisfeiler_lehman_graph_hash(graph_b, edge_attr="weight")
+    assert hash_a == hash_b
