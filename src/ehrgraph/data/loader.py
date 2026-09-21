@@ -24,6 +24,10 @@ from typing import Protocol
 class Event:
     time: datetime
     code: str
+    table: str | None = None
+    """OMOP source table (e.g. "condition", "drug_exposure") -- present on
+    real meds_reader events, optional here so existing censoring-only
+    fixtures that don't care about it don't need updating."""
 
 
 class SubjectLike(Protocol):
