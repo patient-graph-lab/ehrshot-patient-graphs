@@ -28,6 +28,10 @@ class Event:
     """OMOP source table (e.g. "condition", "drug_exposure") -- present on
     real meds_reader events, optional here so existing censoring-only
     fixtures that don't care about it don't need updating."""
+    visit_id: int | str | None = None
+    """Which hospital visit this event belongs to -- present on real
+    meds_reader events, used by build_patient_vectors' "per_visit" dedup
+    mode (ehrgraph.graphs.vectorize)."""
 
 
 class SubjectLike(Protocol):
