@@ -83,7 +83,22 @@ def build_baseline_dataset(
 #: AUROC 0.747 -- badly under-regularized for 768-dim embeddings on ~2.5k
 #: training examples. Best-by-val C landed at ~0.003, test AUROC 0.815,
 #: matching the published 0.81374. Regularization tuning is not optional here.
-DEFAULT_C_GRID = [0.0003, 0.001, 0.002, 0.003, 0.005, 0.007, 0.01, 0.02, 0.05, 0.1, 1.0]
+DEFAULT_C_GRID = [
+    0.00001,
+    0.00003,
+    0.0001,
+    0.0003,
+    0.001,
+    0.002,
+    0.003,
+    0.005,
+    0.007,
+    0.01,
+    0.02,
+    0.05,
+    0.1,
+    1.0,
+]
 
 
 def run_baseline_spike(

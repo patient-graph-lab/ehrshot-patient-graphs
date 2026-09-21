@@ -32,7 +32,13 @@ jobs:
           set -e
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
+          # Lockfiles are legitimate large text -- dependency metadata, not
+          # data-shaped -- and are expected to grow past 500KB as real
+          # dependencies accumulate. Everything else still gets the check.
           for f in $(git diff --name-only --diff-filter=A "$BASE" "$HEAD" || true); do
+            case "$f" in
+              uv.lock|r-viz/renv.lock) continue ;;
+            esac
             if [ -f "$f" ]; then
               size=$(stat -c%s "$f")
               if [ "$size" -gt 512000 ]; then

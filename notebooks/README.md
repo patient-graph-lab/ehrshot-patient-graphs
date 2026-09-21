@@ -1,6 +1,6 @@
 # notebooks/
 
-Colab notebooks, one per visualization/analysis goal. All computation for Project 1 happens here.
+One notebook per analysis goal, run locally. All computation for Project 1 happens here.
 
 ## Naming convention
 
@@ -10,78 +10,52 @@ Colab notebooks, one per visualization/analysis goal. All computation for Projec
 
 ```python
 # Cell 1 — bootstrap (identical in every notebook in this repo)
-import os
 import sys
-from google.colab import userdata
-token = userdata.get("GH_PAT")  # set once via the key icon in Colab's left sidebar — never type a token into a cell
+from pathlib import Path
 
-BRANCH = "main"  # change this to test an unmerged branch/PR before it's merged
+_repo_root = Path.cwd()
+while not (_repo_root / "pyproject.toml").exists() and _repo_root != _repo_root.parent:
+    _repo_root = _repo_root.parent
+sys.path.insert(0, str(_repo_root))
 
-REPO_DIR = "ehrshot-patient-graphs"
-if os.path.exists(REPO_DIR):
-    # Re-running in the same session without a restart — make sure we're
-    # actually on BRANCH's latest commit instead of silently keeping
-    # whatever was cloned before (git clone fails quietly if the dir
-    # already exists, and !-shell failures don't stop the notebook).
-    os.chdir(REPO_DIR)
-    !git fetch origin
-    !git checkout {BRANCH}
-    !git reset --hard origin/{BRANCH}
-else:
-    !git clone --branch {BRANCH} https://{token}@github.com/patient-graph-lab/ehrshot-patient-graphs.git
-    os.chdir(REPO_DIR)
+from scripts.local_setup import ensure_local_data  # noqa: E402
 
-!pip install -e ".[dev,data]"
-
-# pip install -e . registers the package via a .pth file, which Python only
-# reads at interpreter startup. Reinstalling into an already-running kernel
-# succeeds on disk -- "Successfully installed ehrgraph-0.1.0" -- but
-# "import ehrgraph" still fails until the kernel restarts, since the running
-# interpreter never re-scans for new sys.path entries. Adding src/ directly
-# sidesteps that: takes effect immediately, whether this is a fresh VM or a
-# rerun, no restart needed.
-src_path = os.path.join(os.getcwd(), "src")
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
+data_root = ensure_local_data()
 ```
 
-**Opening the notebook from a specific branch in Colab's UI does not change what this cell clones** — that clone is a separate step, always pulls whatever `BRANCH` says, and defaults to `main` regardless of which branch you opened. Set `BRANCH` explicitly when testing an unmerged PR. And because Colab sessions often get reused across multiple "Run all"s without an actual VM restart, the cell above is written to detect an existing checkout and reset it to `BRANCH`'s latest commit rather than silently keeping stale code — don't simplify this back to a bare `git clone`.
+That's it — after this cell, `from ehrgraph.graphs import ...` works, and `EHRSHOT_DATA_ROOT` is set. No Colab, no Drive, no upload widget, no token. `ensure_local_data()` extracts whichever of the 4 archives in `~/ehrshot-data/` haven't been extracted yet and is safe to call every time (skips anything already done).
 
-**If `import ehrgraph` fails with `ModuleNotFoundError` later in the notebook** despite this cell reporting a successful install, it's one of two things: (1) this cell didn't actually run in the *currently active* kernel — common after a runtime reconnect, or jumping to a later cell without re-running from the top; data on disk survives a reconnect, installed-package state doesn't. Fix: re-run this cell. (2) The `sys.path` fix above wasn't in the version of this cell that ran — an older editable-install-only version of this cell needs an actual **Runtime → Restart session** after `pip install`, since Python only reads the `.pth` file at interpreter startup.
+**Why the `sys.path` walk-up instead of a bare `from scripts.local_setup import ...`:** `scripts/` isn't an installed package the way `ehrgraph` is (via `uv sync`), so it's only importable if the repo root is on `sys.path`. The walk-up finds that root regardless of whether Jupyter launched from `notebooks/`, the repo root, or VS Code's own default working directory — don't simplify this to an `os.chdir()` instead, since that would break any cell using a path relative to wherever the notebook file itself lives.
 
-## Loading the dataset — second cell, right after the bootstrap
+## Colab fallback (not the default — see README.md)
 
-**Google Drive is not an option — confirmed disallowed by Stanford's data stewards, Sep 20, 2026** (general Drive doesn't meet their security requirements). Don't mount Drive or pass `source_dir` to `ensure_ehrshot_data()`; that parameter still exists in the code but must not be used — see [`DATA_ACCESS.md`](../DATA_ACCESS.md) for the full reply.
-
-```python
-from scripts.colab_setup import ensure_ehrshot_data
-
-data_root = ensure_ehrshot_data(checksums_path="data/checksums.txt")
-```
-
-This prompts an upload dialog with no `source_dir` given — the only supported path right now. On your own machine first, `python dismantle_data.py EHRSHOT_ASSETS.zip` (grab just that one file — no repo clone needed, it has no dependencies on the rest of this package) writes `./data-chunks/` with the large file split into pieces plus copies of the other 3 (only `EHRSHOT_ASSETS.zip` is too large to upload as-is). Select everything in `data-chunks/` in the dialog; the pieces reassemble automatically. **Known cost**: measured at a fixed ~4-5 Mbps regardless of actual bandwidth — hours per session for the full dataset, not minutes.
-
-**Stanford's actual recommendation is to skip Colab entirely and develop inside Redivis instead**, which hosts the data natively. Under evaluation, not yet decided — see `DATA_ACCESS.md` for what's confirmed and what's still open before assuming this Colab workflow is the long-term answer.
-
-That's it — after these two cells, `from ehrgraph.graphs import ...` works, and `EHRSHOT_DATA_ROOT` is set for the rest of the session. See `00_setup_and_sanity_check.ipynb` for the working version of both.
+If local compute is ever genuinely insufficient, `scripts/colab_setup.py` still works, still has real tests (`tests/test_colab_setup.py`), and the git history has the full Colab bootstrap cell (branch-aware clone, `GH_PAT` token, the editable-install `sys.path` fix) if it's ever needed again. Not documented here in full since it's not the primary path.
 
 ## Saving results back
 
-Any output that should be kept writes to `results/aggregate/` (never `results/per_patient/`), then:
+Any output that should be kept writes to `results/aggregate/` (never `results/per_patient/`), following the frozen schema (issue #18: `task, condition, graph_variant, metric, value, ci_low, ci_high, seed`), then a normal commit:
 
-```python
-!git add results/aggregate/*.csv
-!git commit -m "..."
-!git push
+```bash
+git add results/aggregate/*.csv
+git commit -m "..."
+git push
 ```
 
-## Planned notebooks (filled in as each week's work happens)
+## Notebook plan
 
-- `00_setup_and_sanity_check.ipynb` — bootstrap + confirms data loaded correctly (done)
-- `01_baseline_spike.ipynb` — Week 1: CLMBR full-data logistic regression vs. Stanford's published number
-- `02_graph_construction.ipynb` — Week 2: build the three graph conditions
-- `03_degree_and_centrality.ipynb` — Week 3: degree distribution, the four centrality measures
-- `04_community_detection.ipynb` — Week 3–4: Louvain/Leiden, Girvan-Newman dendrogram
-- `05_homophily_and_energy.ipynb` — Week 3: class-insensitive homophily, normalized Dirichlet energy
-- `06_disease_trajectory.ipynb` — Week 4: the trajectory graph and its dendrogram
-- `07_task_b_and_comparison.ipynb` — Week 4: repeat for Task B, cross-task comparison
+| # | Notebook | Issue(s) | Data source |
+|---|---|---|---|
+| 00 | `setup_and_sanity_check` | #1 | full dataset (`meds_reader`) |
+| 01 | `baseline_spike` | #2 | full dataset (`clmbr_features.pkl`, official labels/splits) |
+| 02 | `official_labels_and_splits` | #3 | full dataset (benchmark labels for both locked tasks) |
+| 03 | `patient_vectorization` | #4 | trimmed OMOP tables (`condition_occurrence`, `drug_exposure`, `procedure_occurrence`) |
+| 04 | `similarity_graph_construction` | #5 | vectors from 03 |
+| 05 | `leakage_conditions` | #6, #7, #8 | trimmed tables (content) + full dataset (`prediction_time` for censoring) |
+| — | *(no notebook — `tests/test_censoring.py`)* | #9 | synthetic fixture only |
+| 06 | `disease_trajectory_graph` | #10 | trimmed OMOP tables (`condition_occurrence` self-join) |
+| 07 | `network_stats_task_a` | #11, #12, #13 | graphs from 04/05 |
+| 08 | `girvan_newman_dendrogram` | #14 | graph from 06 |
+| 09 | `comparison_task_a` | #15, #18 | results from 07; **freezes the `results/aggregate/` schema here** |
+| 10 | `task_b_full_analysis` | #16, #17 | repeats 03–09 for Hypertension |
+
+Once 09/10 have written real output to `results/aggregate/`, `r-viz/figures.R` takes over for the final report figures (`r-viz/README.md`).
