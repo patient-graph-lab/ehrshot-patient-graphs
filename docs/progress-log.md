@@ -43,3 +43,27 @@ Added `meds_reader` as a new optional dependency extra (`data`) in `pyproject.to
 **Verification:** `ruff check .` clean, `pytest -q` passing 4/4 (all synthetic-fixture based; includes pre-existing smoke test). Real-data verification (opening the real meds_reader database, printing real events for a real subject) could not be run in this environment—the development machine has only 2.9 GB of free disk space, not enough to extract the 4.3 GB real EHRSHOT_ASSETS.zip. A new cell was added to the Colab sanity-check notebook specifically for this, meant to be run by the human collaborator in Google Colab where there's enough disk space, as the last step before merging the PR.
 
 **Follow-ups / open questions:** PR #21 needs the real-data cell run in Colab and confirmed before merging. This issue also became a head start on issue #9 (synthetic fixture + full leakage test suite), which will build further on the same fixture file rather than starting from scratch.
+
+---
+
+## #3 — Validate locked benchmark tasks' labels and splits, build vocabulary and cohort modules
+**Date:** 2026-09-21 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/26 · **Branch:** issue-3-labels-splits-exploration
+
+**What happened:** Validated the two locked benchmark tasks' official labels and splits against PROJECT_GUIDE.md using the full official EHRSHOT_ASSETS dataset (not the professor's trimmed copy). guo_los (Long Length of Stay) confirmed at 3855 patients / 1271 ever-positive, and new_hypertension at 2328 patients / 386 ever-positive—both match PROJECT_GUIDE.md exactly. Discovered and validated a critical graph-building insight: label rows outnumber patient counts for both tasks because a patient can have multiple prediction_time rows with different label values, establishing that (patient_id, prediction_time) is the correct node identity for graph construction, not patient_id alone—this directly informs issue #4's build_patient_vectors node keying strategy.
+
+Built three new tested modules: `ehrgraph.data.vocabulary` (resolves raw "VOCAB/CODE" event codes like "ICD9CM/623.8" to human-readable disease names via the full official OMOP concept.csv, a 5.9M-row table in EHRSHOT_ASSETS/femr/logs/omop_dir/, achieving 100% match rate across all distinct condition codes in both cohorts); `ehrgraph.data.cohort` (code-frequency counting and demographic summaries—sex, race, age-at-prediction-time—with patient-weighted and event-weighted counts kept separate); and `ehrgraph.eval.labels` (one-row-per-task summary across all 15 released EHRSHOT benchmark tasks for broad dataset understanding before zooming into the two locked tasks). Built and fully executed `notebooks/02_official_labels_and_splits.ipynb` end-to-end against real local data: broad pass across all 15 tasks (cohort sizes, class balance), detailed zoom-in per locked task (class balance by split, temporal coverage, demographics, top diagnoses comparison, PCA projection of CLMBR embeddings, lift-weighted diagnosis co-occurrence network preview). Notable finding: ever-positive patients skew older in both tasks, and guo_los-positive patients show cardiometabolic comorbidity patterns (hypertension, hyperlipidemia, abnormal ECG) more often than negative patients. Notebook explicitly flagged its use of full patient history (not prediction_time-censored) as not leakage-safe, deferring that to issues #6/#7/#8.
+
+Also added an optional `table` field (default None, backward compatible) to the `Event` dataclass in `loader.py` so synthetic test fixtures could mimic real meds_reader events.
+
+**Code and packages touched:**
+- `src/ehrgraph/data/vocabulary.py` (new) — code-to-concept-name resolution via concept.csv OMOP join
+- `src/ehrgraph/data/cohort.py` (new) — cohort code-frequency and demographic summaries
+- `src/ehrgraph/eval/labels.py` (new) — cross-task label statistics
+- `src/ehrgraph/data/loader.py` — added optional `table` field to `Event` dataclass
+- `tests/fixtures/make_synthetic.py` — added `FakeDatabase` / `cohort_with_conditions()` fixture shaped like real meds_reader output
+- `tests/test_cohort.py`, `tests/test_labels.py`, `tests/test_vocabulary.py` (new) — 21 new synthetic-fixture-based tests
+- `notebooks/02_official_labels_and_splits.ipynb` (new) — end-to-end benchmark task exploration and validation
+
+**Verification:** `ruff check .` clean, `pytest -q` passing 31/31 (all synthetic-fixture based, no real data in CI). Notebook executed end-to-end via `jupyter nbconvert --execute` against the real full official dataset—zero errors, all assertions passed (patient/positive counts matched PROJECT_GUIDE.md exactly), 100% concept-name match rate across all distinct condition codes in both cohorts, 100% CLMBR-embedding join rate. Notebook outputs stripped via nbstripout before commit. PR #26 opened, all 3 CI checks (lint-and-test, lint-notebooks, no-data-committed) passing. No new dependencies—everything used (pandas, networkx, scikit-learn, matplotlib) was already in pyproject.toml.
+
+**Follow-ups / open questions:** None blocking—ready to merge. Issue #4 (build_patient_vectors) can now proceed knowing the correct node identity is (patient_id, prediction_time).
