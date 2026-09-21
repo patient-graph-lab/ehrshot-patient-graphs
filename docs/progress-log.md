@@ -85,3 +85,19 @@ Also added an optional `table` field (default None, backward compatible) to the 
 **Verification:** `ruff check .` clean, `pytest -q` passing 43/43. Notebook executed end-to-end twice via `jupyter nbconvert --execute` against the real full official dataset—zero errors both times. Real matrix sizes confirmed: condition (3850 patients x 16,263 codes, 277,926 nonzero), drug_exposure (3850 x 5,407, 294,749 nonzero), procedure (3850 x 9,087, 189,095 nonzero) after table-name bug fix. Notebook outputs stripped via nbstripout before commit. PR #27 opened, all 3 CI checks passing.
 
 **Follow-ups / open questions:** Building a real concept_ancestor-derived rollup map (ontology-aware similarity robustness check) is separate follow-up work, listed in PROJECT_GUIDE.md's "Can improve" section—not blocking. Issue #5 (bipartite patient-code graph, TF-IDF/cosine projection, mutual k-NN sparsify) can now proceed using this module's output.
+
+---
+
+## #5 — Build patient-similarity graph with TF-IDF and k-NN sparsification
+**Date:** 2026-09-21 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/28 · **Branch:** issue-5-similarity-graph
+
+**What happened:** Built the actual patient-similarity graph—the first real graph this project has constructed; everything before this (issues #1–#4) was groundwork. Created a new module `ehrgraph.graphs.similarity` with a clear pipeline: `to_tfidf` (applies IDF weighting on the binary vectors from issue #4), `cosine_similarity_matrix` (computes patient-to-patient similarity, staying sparse with diagonal zeroed), `top_k_sparsify` (keeps each patient's 10 most similar neighbors), `mutual_knn` (primary method: keeps edges only if both patients picked each other), `union_knn` (secondary method: keeps edges if either patient picked the other), `to_networkx` (builds the graph object), and `graph_summary` (reports counts and connectivity). Importantly, IDF weighting is applied on *binary* presence (not raw counts), preserving the issue-#4 decision to avoid conflating rare diagnoses with frequently-recorded ones. Built and executed `notebooks/04_similarity_graph_construction.ipynb` end-to-end against the real 3,850-patient guo_los cohort, finding that mutual k-NN yields 245 isolated patients (6.4%) and 92.6% in the largest component, while union k-NN isolates only 12 patients (0.3%) with 99.7% in one giant component—this gap itself is an informative finding on diagnosis-pattern clustering.
+
+**Code and packages touched:**
+- `src/ehrgraph/graphs/similarity.py` (new) — to_tfidf, cosine_similarity_matrix, top_k_sparsify, mutual_knn, union_knn, to_networkx, graph_summary
+- `tests/test_similarity.py` (new) — 14 synthetic-fixture-based tests covering IDF behavior, cosine edge cases, sparsification asymmetry, reciprocation logic, and component counting
+- `notebooks/04_similarity_graph_construction.ipynb` (new) — end-to-end real-data pipeline execution
+
+**Verification:** `ruff check .` clean, `pytest -q` passing 53/53. Notebook executed end-to-end three times via `jupyter nbconvert --execute` against the real full official dataset (after ruff format and import-order auto-fix)—zero errors every time. Real numbers confirmed: 58.99% density before sparsification, 38,353 directional entries kept by top-10, 9,091 undirected edges after mutual k-NN, 29,262 after union k-NN. Notebook outputs stripped via nbstripout before commit. PR #28 opened, all 3 CI checks passing.
+
+**Follow-ups / open questions:** None blocking. This notebook uses full patient history (no prediction_time censoring)—intentional, deferred to issues #6/#7/#8.
