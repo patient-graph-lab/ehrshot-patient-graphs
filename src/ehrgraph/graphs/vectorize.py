@@ -44,11 +44,12 @@ stay separate until Project 1's multi-relational reporting collapses them.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Protocol
+from datetime import datetime
+from typing import Any, Protocol
 
 import scipy.sparse as sp
 
-from ehrgraph.data.loader import Event
+from ehrgraph.data.loader import Event, events_all, events_before
 
 WEIGHTINGS = ("binary", "count", "count_normalized")
 DEDUPS = ("per_occurrence", "per_visit", "per_patient")
@@ -93,47 +94,28 @@ def _deduped_counts(
     return counts
 
 
-def build_patient_vectors(
-    db: DatabaseLike,
-    subject_ids: Iterable[int],
-    table: str,
-    weighting: str = "binary",
-    dedup: str = "per_patient",
-    rollup: dict[str, str] | None = None,
-) -> tuple[sp.csr_matrix, list[int], list[str]]:
-    """One row per subject, one column per distinct code seen (restricted
-    to `table`). Returns (matrix, patient_id_order, code_order): matrix[i,
-    j] is patient_id_order[i]'s value for code_order[j].
-
-    `rollup` is an optional {code: ancestor_code} map (from OMOP's
-    concept_ancestor, per Module A2's ontology-rollup robustness check) --
-    building that map from real data is a separate concern; this function
-    just applies one if given.
-
-    Codes are sorted alphabetically so the same inputs always produce the
-    same column order -- matters for reproducibility (issue #9's
-    determinism test).
-    """
+def _matrix_from_counts(
+    keys: list[Any], per_key_counts: dict[Any, dict[str, int]], weighting: str
+) -> tuple[sp.csr_matrix, list[str]]:
+    """Shared by build_patient_vectors and build_node_vectors: turn a
+    {key: {code: count}} mapping into a sparse (key x code) matrix. `key`
+    is either a patient_id or a (patient_id, prediction_time) node --
+    this function doesn't care which, it just needs something hashable to
+    index rows by."""
     if weighting not in WEIGHTINGS:
         raise ValueError(f"Unknown weighting {weighting!r}, expected one of {WEIGHTINGS}")
 
-    subject_ids = list(subject_ids)
-    per_patient_counts: dict[int, dict[str, int]] = {}
     all_codes: set[str] = set()
-    for sid in subject_ids:
-        events = (e for e in db[sid].events if e.table == table)
-        counts = _deduped_counts(events, dedup, rollup)
-        per_patient_counts[sid] = counts
+    for counts in per_key_counts.values():
         all_codes.update(counts)
-
     code_order = sorted(all_codes)
     code_index = {code: j for j, code in enumerate(code_order)}
 
     rows: list[int] = []
     cols: list[int] = []
     vals: list[float] = []
-    for i, sid in enumerate(subject_ids):
-        counts = per_patient_counts[sid]
+    for i, key in enumerate(keys):
+        counts = per_key_counts[key]
         total = sum(counts.values())
         for code, count in counts.items():
             if weighting == "binary":
@@ -146,5 +128,84 @@ def build_patient_vectors(
             cols.append(code_index[code])
             vals.append(value)
 
-    matrix = sp.csr_matrix((vals, (rows, cols)), shape=(len(subject_ids), len(code_order)))
+    matrix = sp.csr_matrix((vals, (rows, cols)), shape=(len(keys), len(code_order)))
+    return matrix, code_order
+
+
+def build_patient_vectors(
+    db: DatabaseLike,
+    subject_ids: Iterable[int],
+    table: str,
+    weighting: str = "binary",
+    dedup: str = "per_patient",
+    rollup: dict[str, str] | None = None,
+) -> tuple[sp.csr_matrix, list[int], list[str]]:
+    """One row per subject, one column per distinct code seen (restricted
+    to `table`). Returns (matrix, patient_id_order, code_order): matrix[i,
+    j] is patient_id_order[i]'s value for code_order[j].
+
+    Uses each subject's *entire* event history -- no time censoring. For
+    the leakage-safe/leaky graph conditions (issues #6/#7), where a
+    patient can legitimately have several different prediction_time cutoffs
+    (see build_node_vectors below), use build_node_vectors instead.
+
+    `rollup` is an optional {code: ancestor_code} map (from OMOP's
+    concept_ancestor, per Module A2's ontology-rollup robustness check) --
+    building that map from real data is a separate concern; this function
+    just applies one if given.
+
+    Codes are sorted alphabetically so the same inputs always produce the
+    same column order -- matters for reproducibility (issue #9's
+    determinism test).
+    """
+    subject_ids = list(subject_ids)
+    per_patient_counts: dict[int, dict[str, int]] = {}
+    for sid in subject_ids:
+        events = (e for e in db[sid].events if e.table == table)
+        per_patient_counts[sid] = _deduped_counts(events, dedup, rollup)
+
+    matrix, code_order = _matrix_from_counts(subject_ids, per_patient_counts, weighting)
     return matrix, subject_ids, code_order
+
+
+def build_node_vectors(
+    db: DatabaseLike,
+    nodes: Iterable[tuple[int, datetime]],
+    table: str,
+    censor: bool,
+    weighting: str = "binary",
+    dedup: str = "per_patient",
+    rollup: dict[str, str] | None = None,
+) -> tuple[sp.csr_matrix, list[tuple[int, datetime]], list[str]]:
+    """Like build_patient_vectors, but keyed by (patient_id,
+    prediction_time) node identity instead of patient_id alone -- issue
+    #3 confirmed a patient can have several different prediction_time
+    rows (e.g. several hospital admissions), each of which needs its own
+    view of "the patient's history so far", not one shared vector per
+    patient.
+
+    `censor` picks the graph condition, by calling the exact same
+    already-tested boundary functions from ehrgraph.data.loader -- the
+    safety-critical censoring logic lives in exactly one place (loader.py),
+    never reimplemented here:
+      censor=True  -> events_before(subject, prediction_time): the
+                       leakage-safe condition (issue #6).
+      censor=False -> events_all(subject): the intentionally-leaky
+                       condition (issue #7), full history regardless of
+                       prediction_time.
+
+    Returns (matrix, node_order, code_order): matrix[i, j] is
+    node_order[i]'s value for code_order[j]. The same patient_id can
+    appear in node_order more than once, each row reflecting only what
+    was knowable as of that specific prediction_time.
+    """
+    nodes = list(nodes)
+    per_node_counts: dict[tuple[int, datetime], dict[str, int]] = {}
+    for patient_id, prediction_time in nodes:
+        subject = db[patient_id]
+        source_events = events_before(subject, prediction_time) if censor else events_all(subject)
+        events = (e for e in source_events if e.table == table)
+        per_node_counts[(patient_id, prediction_time)] = _deduped_counts(events, dedup, rollup)
+
+    matrix, code_order = _matrix_from_counts(nodes, per_node_counts, weighting)
+    return matrix, nodes, code_order
