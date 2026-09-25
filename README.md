@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Data](https://img.shields.io/badge/data-DUA%20required-critical)
 
-This is the working repo for a semester research project (CIS 4930 / CAI 5155, Network Analysis and Machine Learning with Graphs, University of South Florida, Fall 2026), aimed at a real publication afterward. Built by a small team, meant to be read by that team, and — once there's a finding — by whoever we send the paper or the site link to next.
+This is the working repo for a semester research project (CIS 4930 / CAI 5155, Network Analysis and Machine Learning with Graphs, University of South Florida, Fall 2026), aimed at a real publication afterward.
 
 **The question:** does a leakage-safe patient-similarity graph genuinely improve a pretrained clinical foundation model's (CLMBR) few-shot predictions on EHRSHOT, and does the size of that improvement track graph homophily — or does it only show up when the graph is allowed to see the future?
 
