@@ -71,7 +71,7 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 
 ## Computation happens locally — and the data never leaves the device
 
-Project 1 runs entirely on your own machine now. The original plan routed everything through Colab specifically because of an assumption ("not enough local compute") that turned out to be wrong — a normal laptop (confirmed: 8 threads, 32GB RAM) handles this comfortably; the graphs here top out around ~3,800 nodes.
+Project 1 runs entirely on your own machine now. The original plan routed everything through Colab specifically because of an assumption ("not enough local compute") that turned out to be wrong — a normal laptop (confirmed: 8 threads, 32GB RAM) handles this comfortably; the largest graphs here have ~7,000 nodes (one per admission, not per patient).
 
 **Setup, one time:**
 

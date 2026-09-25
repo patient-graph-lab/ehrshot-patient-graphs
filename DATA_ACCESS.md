@@ -19,7 +19,7 @@ This repository contains **no patient data of any kind**, at any level of aggreg
 
 ## Where the data lives: this device only (team decision, Sep 25, 2026)
 
-**The dataset stays on the collaborator's own machine, and nowhere else, until the team explicitly decides otherwise.** That means `~/ehrshot-data/` (or wherever your own `EHRSHOT_DATA_ROOT` points) on a machine you control — no Google Drive, no Colab upload (chunked or otherwise), no Redivis export, no S3, no shared folder. Every notebook runs locally via `scripts/local_setup.py`; Project 1 needs nothing more (the graphs top out around ~3,900 nodes).
+**The dataset stays on the collaborator's own machine, and nowhere else, until the team explicitly decides otherwise.** That means `~/ehrshot-data/` (or wherever your own `EHRSHOT_DATA_ROOT` points) on a machine you control — no Google Drive, no Colab upload (chunked or otherwise), no Redivis export, no S3, no shared folder. Every notebook runs locally via `scripts/local_setup.py`; Project 1 needs nothing more (the largest graphs have ~7,000 nodes -- one per admission, not per patient).
 
 **GitHub holds code and aggregate results only.** Concretely, the only things that leave the machine are:
 - source code, tests, and notebooks **with outputs stripped** (`nbstripout` runs in pre-commit and CI's `notebook-lint` re-checks it — printed outputs can quietly contain patient IDs, so they never get committed);
