@@ -162,3 +162,37 @@ Built and executed notebook `notebooks/06_disease_trajectory_graph.ipynb` end-to
 **Verification:** `ruff check .` clean, `pytest -q` passing 74/74. Notebook executed end-to-end multiple times via `jupyter nbconvert --execute` against the real full official dataset (initial build, two visualization redesign passes, one after lint-driven formatting changes) to confirm nothing was silently broken along the way—zero errors every time, with identical real numbers reproduced on every run. Notebook outputs stripped via nbstripout before commit. PR #30 opened, all 3 CI checks (lint-and-test, lint-notebooks, no-data-committed) passing.
 
 **Follow-ups / open questions:** None blocking. This graph and module are ready to feed directly into issue #14 (Girvan-Newman dendrogram), which needs exactly this undirected, weighted trajectory graph as its input.
+
+---
+
+## Sep 25 audit — device-only data rule, Task B baseline verified, aggregate writer
+**Date:** 2026-09-25 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/31 · **Branch:** chore/sep25-audit
+
+**What happened:** Team decision established that the EHRSHOT dataset stays strictly on the local device (no Colab, Google Drive, or Redivis export); GitHub carries only code, notebooks with outputs stripped, and results/aggregate/ (summary CSVs plus figures). Updated DATA_ACCESS.md, README.md, and notebooks/README.md with this policy, removing stale "Colab workflow" sections. Hypertension (Task B) baseline now verified: notebook 01 previously printed it without asserting, now asserts |diff| < 0.02, confirming AUROC 0.7125 vs Stanford's published 0.71758 (diff 0.005, C=0.0003). New module src/ehrgraph/eval/aggregate.py with write_aggregate() enforces the long-format schema, refuses patient-identifying columns and paths outside results/aggregate/, and caught a real bug where the condition name "null" was silently turned into NaN by pd.read_csv. Repo health checks found pre-commit hooks not installed (now installed) and working-copy edits to notebooks that were older versions (stashed, not committed).
+
+**Code and packages touched:**
+- `src/ehrgraph/eval/aggregate.py` (new) — write_aggregate with schema enforcement and validation
+- `DATA_ACCESS.md`, `README.md`, `notebooks/README.md` — updated with device-only policy, removed stale Colab sections
+- `tests/test_aggregate.py` (new) — 6 tests
+- No change to `.pre-commit-config.yaml` itself — its hooks were simply never installed in the main local clone; now they are (`pre-commit install`)
+
+**Verification:** pytest passing, ruff clean, notebook 01 executed end to end with both assertions passing; CI checks on PR #31 passing.
+
+**Follow-ups / open questions:** User should confirm the old Google Drive copy (ehrshot_transfer folder) was deleted and the Drive trash emptied, per Stanford's Sep 20 reply. GitHub Student Developer Pack still worth confirming before the Week 4 placeholder site.
+
+---
+
+## #11, #12, #13 — Network statistics for Task A: structure, centrality, communities, homophily
+**Date:** 2026-09-25 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/32 · **Branch:** issue-11-12-13-network-stats-task-a
+
+**What happened:** Built notebook 07_network_stats_task_a.ipynb comparing safe, leaky, and null graphs for Long Length of Stay (6,990 admissions, prevalence 0.253) against a 10-seed null ensemble. Key findings: transitivity 0.498 (safe) vs 0.660 (leaky) vs 0.001 (null); average path length 9.6 vs 11.9 vs 5.3 hops; Leiden modularity 0.942 vs 0.980 vs 0.558; share of outcome variance explained by community 0.121 vs 0.147 vs 0.007. Real graphs are strongly homophilous and aligned with CLMBR far beyond chance; leakage changed graph shape but not outcome alignment. Centrality does not predict outcome (AUROC 0.47–0.55). Fixed four bugs: (1) class-insensitive homophily was missing base-rate term, replaced with Lim et al. formula; (2) switched networkx betweenness/closeness to igraph's C implementation (~13 s per graph vs 14–22 min); (3) eigenvector centrality now computed in largest connected component only; (4) average path length now estimated by BFS from 500 samples (9.559 vs exact 9.558, 16 s vs 189 s).
+
+**Code and packages touched:**
+- `src/ehrgraph/netstats/centrality.py`, `communities.py` (adds modularity), `homophily.py` (corrected class_insensitive_homophily), `structure.py` (new: structural_stats, average_path_length_sampled) — network statistics implementations
+- `src/ehrgraph/graphs/similarity.py` (new build_similarity_graph) — vectors-to-graph pipeline previously inlined in notebook 05
+- `tests/test_centrality.py`, `test_communities.py`, `test_homophily.py`, `test_structure.py`, `test_similarity.py` (new/updated) — 105 total tests
+- `notebooks/07_network_stats_task_a.ipynb` (new) — results/aggregate/network_stats_task_a.csv and 5 figures
+
+**Verification:** pytest 105 passed, ruff clean, notebook executed end to end three times against real on-device data; final run produced committed CSV and figures; numbers cross-checked against CSV.
+
+**Follow-ups / open questions:** #14 (Girvan-Newman dendrogram), #15 (safe-vs-leaky-vs-null structural comparison), #16 (repeat for Hypertension), #18 (freeze aggregate CSV schema). Notebook 05 could later be switched to build_similarity_graph instead of inlining.
