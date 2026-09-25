@@ -39,3 +39,11 @@ def test_refuses_non_numeric_value(tmp_path):
     out = tmp_path / "results" / "aggregate" / "x.csv"
     with pytest.raises(ValueError, match="numeric"):
         write_aggregate([ROW | {"value": "high"}], out)
+
+
+def test_refuses_labels_pandas_reads_as_missing(tmp_path):
+    out = tmp_path / "results" / "aggregate" / "x.csv"
+    with pytest.raises(ValueError, match="read back as missing"):
+        write_aggregate([ROW | {"condition": "null", "value": 1.0}], out)
+    write_aggregate([ROW | {"condition": "null_model", "value": 1.0}], out)
+    assert pd.read_csv(out)["condition"].tolist() == ["null_model"]
