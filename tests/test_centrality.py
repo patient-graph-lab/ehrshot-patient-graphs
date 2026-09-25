@@ -106,3 +106,13 @@ def test_igraph_betweenness_and_closeness_match_networkx_exactly():
     for node in graph.nodes:
         assert suite.loc[node, "betweenness"] == pytest.approx(expected_b[node], abs=1e-9)
         assert suite.loc[node, "closeness"] == pytest.approx(expected_c[node], rel=1e-9)
+
+
+def test_eigenvector_restricted_to_largest_component():
+    graph = nx.Graph()
+    for i in range(5):
+        graph.add_edge(f"main_{i}", f"main_{i + 1}", weight=0.5)
+    graph.add_edge("tiny_a", "tiny_b", weight=0.9)
+    suite = centrality_suite(graph)
+    assert suite.loc[[f"main_{i}" for i in range(6)], "eigenvector"].gt(0.01).all()
+    assert suite.loc[["tiny_a", "tiny_b"], "eigenvector"].isna().all()

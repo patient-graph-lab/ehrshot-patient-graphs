@@ -33,6 +33,9 @@ computed only within the largest connected component here (standard
 practice for disconnected graphs); nodes outside it get `NaN`, reported
 as "not applicable," not a fabricated number.
 
+Eigenvector centrality follows the same largest-component rule as
+closeness, for the analogous reason (see `centrality_suite`).
+
 **Speed (Sep 25, measured on the real ~7,000-node Task A graphs):**
 networkx's pure-Python Dijkstra took ~14 min for exact betweenness and
 ~8 min for closeness *per graph*. Both are now computed by igraph's C
@@ -94,7 +97,6 @@ def centrality_suite(
     n = graph.number_of_nodes()
 
     degree = nx.degree_centrality(graph)
-    eigenvector = nx.eigenvector_centrality(graph, weight="weight", max_iter=1000)
 
     if betweenness_k is not None and betweenness_k < n:
         betweenness = nx.betweenness_centrality(
@@ -108,6 +110,13 @@ def centrality_suite(
         betweenness = {node: b * scale for node, b in zip(order, raw, strict=True)}
 
     largest_cc = graph.subgraph(max(nx.connected_components(graph), key=len))
+    # Eigenvector centrality is also only meaningful within one connected
+    # piece: on a disconnected graph, power iteration piles all the mass
+    # onto whichever component has the largest leading eigenvalue and
+    # returns ~0 for everyone else. Observed on the real Task A graphs
+    # (Sep 25): median ~1e-18 when computed over the whole graph.
+    eigen_giant = nx.eigenvector_centrality(largest_cc, weight="weight", max_iter=1000)
+    eigenvector = {node: eigen_giant.get(node, float("nan")) for node in graph.nodes}
     ig_giant, giant_order = _igraph_with_distance(largest_cc)
     # On a connected graph igraph's normalized closeness, (n-1) / sum(dist),
     # is exactly networkx's closeness_centrality.
