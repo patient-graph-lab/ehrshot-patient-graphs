@@ -10,7 +10,11 @@ point of writing rather than trusting each notebook to remember it:
   - no column that could carry a patient identity (`patient_id`,
     `prediction_time`, ...), since one stray per-patient column would turn
     an "aggregate" CSV into exactly the kind of file the DUA forbids;
-  - the file lands under a `results/aggregate/` directory, nowhere else.
+  - the file lands under a `results/aggregate/` directory, nowhere else;
+  - no text value that pandas' default reader turns into a missing value.
+    Found the hard way (Sep 25): the graph condition "null" is on pandas'
+    default NA list, so `pd.read_csv` silently dropped every null-model row
+    from a groupby. Use `null_model` as the condition name instead.
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+from pandas._libs.parsers import STR_NA_VALUES
 
 SCHEMA = ["task", "condition", "graph_variant", "metric", "value", "ci_low", "ci_high", "seed"]
 REQUIRED = ["task", "condition", "graph_variant", "metric", "value"]
@@ -56,6 +61,14 @@ def write_aggregate(rows: pd.DataFrame | list[dict], path: Path) -> Path:
         raise ValueError(f"required column(s) {missing} missing from aggregate output.")
     if not pd.api.types.is_numeric_dtype(df["value"]):
         raise ValueError("`value` must be numeric -- one number per (metric, condition) row.")
+
+    for col in ("task", "condition", "graph_variant", "metric"):
+        as_na = sorted(set(df[col].dropna().astype(str)) & STR_NA_VALUES)
+        if as_na:
+            raise ValueError(
+                f"{col} value(s) {as_na} would be read back as missing by pandas -- rename them "
+                "(e.g. condition 'null' -> 'null_model')."
+            )
 
     for col in SCHEMA:
         if col not in df.columns:
