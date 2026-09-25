@@ -51,8 +51,8 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 │   └── test_smoke.py          confirms the package imports; real tests land as graphs/censoring get built
 ├── scripts/
 │   ├── local_setup.py         current default — extracts from ~/ehrshot-data/, sets EHRSHOT_DATA_ROOT
-│   ├── colab_setup.py         Colab fallback (Drive or direct upload), kept tested but not primary
-│   └── dismantle_data.py      splits EHRSHOT_ASSETS.zip, only needed for the Colab direct-upload fallback
+│   ├── colab_setup.py         Colab path -- kept tested, NOT in use (data stays on-device, see DATA_ACCESS.md)
+│   └── dismantle_data.py      splits EHRSHOT_ASSETS.zip for the Colab upload path -- NOT in use
 ├── notebooks/                 Project 1 computation happens here — see notebooks/README.md
 ├── r-viz/                     R + ggplot2, final report figures only — reads results/aggregate/ exclusively
 ├── data/
@@ -69,7 +69,7 @@ One extra thing worth doing once we're stratifying by sex/ethnicity, since it ca
 
 **Not here yet, on purpose:** `configs/`, `site/`, `docs/adr/`. Each one gets created with a single command the moment there's an actual file to put in it — `site/` when the Quarto build actually begins. An empty folder that exists only to look organized isn't worth the confusion of browsing past it with nothing in it.
 
-## Computation happens locally (current — Colab/Redivis kept as fallback)
+## Computation happens locally — and the data never leaves the device
 
 Project 1 runs entirely on your own machine now. The original plan routed everything through Colab specifically because of an assumption ("not enough local compute") that turned out to be wrong — a normal laptop (confirmed: 8 threads, 32GB RAM) handles this comfortably; the graphs here top out around ~3,800 nodes.
 
@@ -90,9 +90,7 @@ flowchart TD
 
 Every notebook's first cell calls `ensure_local_data()` (`scripts/local_setup.py`) — no Drive, no upload widget, no waiting. `meds_reader` itself installs and runs cleanly on Linux/macOS (confirmed Sep 20) — if it ever doesn't on your setup, that's the one thing worth flagging early.
 
-**Colab is not gone, just demoted.** `scripts/colab_setup.py` and `scripts/dismantle_data.py` still work and are still tested (`tests/test_colab_setup.py`, `tests/test_dismantle_data.py`) — useful if local compute is ever genuinely insufficient (a serious Project 2 GNN sweep, maybe). See `notebooks/README.md` for that path. Redivis is still a live open question (issue #23) but no longer something Project 1 is waiting on.
-
-**The DUA rules are unchanged by any of this** — local, Colab, or Redivis, the data still never gets committed, never gets exposed publicly, and only aggregate output leaves this machine at all. See [`DATA_ACCESS.md`](DATA_ACCESS.md).
+**The dataset stays on this device, full stop (team decision, Sep 25).** No Colab upload, no Drive, no Redivis export. GitHub gets code, stripped notebooks, and `results/aggregate/` (summary CSVs + figures built from them) — nothing else. `scripts/colab_setup.py` and `scripts/dismantle_data.py` are still in the repo and still tested in case that decision is ever revisited (issue #23 tracks Redivis, the only cloud option Stanford recommended), but they are not to be used for now. Full rules: [`DATA_ACCESS.md`](DATA_ACCESS.md).
 
 ## Install
 

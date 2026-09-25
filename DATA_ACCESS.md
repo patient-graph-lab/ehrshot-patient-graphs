@@ -17,21 +17,18 @@ This repository contains **no patient data of any kind**, at any level of aggreg
    ```
 4. Verify your copy matches what the team is using by comparing against `data/checksums.txt` (`sha256sum` each file) — this lets two collaborators confirm they have the same dataset version without either of them transmitting the data itself.
 
-## Colab workflow (how Project 1 actually runs, for now — see "Redivis" below)
+## Where the data lives: this device only (team decision, Sep 25, 2026)
+
+**The dataset stays on the collaborator's own machine, and nowhere else, until the team explicitly decides otherwise.** That means `~/ehrshot-data/` (or wherever your own `EHRSHOT_DATA_ROOT` points) on a machine you control — no Google Drive, no Colab upload (chunked or otherwise), no Redivis export, no S3, no shared folder. Every notebook runs locally via `scripts/local_setup.py`; Project 1 needs nothing more (the graphs top out around ~3,900 nodes).
+
+**GitHub holds code and aggregate results only.** Concretely, the only things that leave the machine are:
+- source code, tests, and notebooks **with outputs stripped** (`nbstripout` runs in pre-commit and CI's `notebook-lint` re-checks it — printed outputs can quietly contain patient IDs, so they never get committed);
+- summary tables in `results/aggregate/*.csv` (one row per metric, never one row per patient);
+- figures in `results/aggregate/figures/` built only from those summaries (distributions, bar charts, anonymous network layouts — no patient IDs, no labels on individual nodes).
+
+`scripts/colab_setup.py` and `scripts/dismantle_data.py` are still in the repo and still tested, but they are **not to be used** under this policy — they exist only in case the team later reverses the decision (issue #23 tracks Redivis as the only option Stanford actually recommended for cloud compute).
 
 **RESOLVED, Sep 20, 2026 — Google Drive is explicitly disallowed. This is confirmed, not a judgment call.** Stanford's data stewards (shahlab-contact@stanford.edu) replied to the question sent earlier the same day: *"Generally only institution-level Google Drive setups (e.g., Stanford's) which explicitly include citable, documented guidance on protocols for storing high-risk data are permitted. The general rule is to not store the data in Google Drive, since it doesn't meet our explicit requirements around security."* This supersedes every earlier Drive-related risk analysis in this file's history (all now void) — a personal or team Google Drive, brief pass-through or persistent, does not meet Stanford's bar. **Any standing copy in Drive must be deleted immediately, Trash emptied too** (Drive's delete only moves to Trash by default).
-
-**Current interim path: direct chunked upload, zero third-party storage of any kind.** On your own machine, `python dismantle_data.py EHRSHOT_ASSETS.zip` (pure Python, works the same on Windows/Mac/Linux — grab just that one file, no repo clone needed) writes `./data-chunks/` containing the large file split into ~400MB pieces plus copies of the other 3. Upload everything in that folder in one multi-select when `ensure_ehrshot_data(checksums_path="data/checksums.txt")` (no `source_dir`) prompts for it — the pieces reassemble automatically. **Known cost: measured at ~4.4 Mbps regardless of actual bandwidth, meaning hours per session for the full ~4.95GB dataset** (see the commit history for the original measurement) — this is the tradeoff for touching nothing but the Colab VM's own ephemeral disk.
-
-**Stanford's actual recommendation: don't use Colab at all — develop natively within Redivis.** Their reply continued: *"The clearest advice is to do your notebook and development within Redivis, which supports Colab-style notebooks and compute and lets you house the data securely."* Initial research (Sep 20): Redivis Python notebooks run on a `jupyter/pytorch-notebook` base image (CUDA 12 / Python 3.12), support installing arbitrary pip packages via a Dependencies panel (`Packages`, `pre_install.sh`, `post_install.sh`), and offer configurable GPU/CPU/memory/disk resources — a free default tier plus custom configs for more. This looks credible as a real alternative, and would eliminate the entire data-transfer problem this section has been wrestling with, since the notebook would run where the data already lives natively.
-
-**Not yet resolved, deliberately not decided unilaterally:**
-- Whether/how a private GitHub repo (this one) can be cloned into a Redivis notebook the same way it is in Colab.
-- Whether `meds_reader` (a compiled C extension) installs cleanly there.
-- Actual compute quotas/cost for sustained use across a semester, and GPU availability specifics for Week 6+ GNN work.
-- Migration cost: `src/ehrgraph/` and `scripts/colab_setup.py`'s core logic are plain Python, portable as-is; the notebook bootstrap cells (`google.colab`-specific: Secrets, Drive, upload widgets) would need a Redivis-native rewrite.
-
-This needs the team to actually explore a Redivis notebook directly (you already have Redivis access, since that's how the dataset was obtained) before committing to a migration — worth doing soon, since it may remove the data-transfer problem entirely rather than continuing to work around it.
 
 ## What must never happen
 
