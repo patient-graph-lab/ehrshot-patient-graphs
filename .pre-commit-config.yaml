@@ -10,12 +10,16 @@ repos:
     rev: 0.7.1
     hooks:
       - id: nbstripout
+        # executed copies keep their outputs on purpose; they are privacy-
+        # scanned instead (scripts/publish_executed.py, check_executed_notebooks.py)
+        exclude: ^notebooks/executed/
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: check-added-large-files
         args: [--maxkb=500]
+        exclude: ^notebooks/executed/  # capped at 5 MB by check_executed_notebooks.py
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-merge-conflict
@@ -29,4 +33,11 @@ repos:
           | grep -E "(\.(parquet|csv|zip|tar\.gz|pkl|npy|npz|pt|feather|arrow|db)$|\.part_[a-zA-Z0-9]+$)"
           | grep -v "^results/aggregate/" && exit 1 || exit 0'
         language: system
+        pass_filenames: false
+
+      - id: executed-notebooks-scan
+        name: privacy-scan executed notebooks (no id-shaped numbers, patient columns, long tables)
+        entry: python3 scripts/check_executed_notebooks.py
+        language: system
+        files: ^notebooks/executed/.*\.ipynb$
         pass_filenames: false

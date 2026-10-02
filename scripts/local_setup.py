@@ -4,7 +4,9 @@ The data already lives on disk (~/ehrshot-data by convention, as 4 archive
 files). This extracts whichever of them haven't been extracted yet, and sets
 EHRSHOT_DATA_ROOT for the rest of the session. That's the whole job.
 
-Usage, as the first cell of any local notebook:
+Usage, as the first cell of a notebook. Team-runnable notebooks (07-11)
+use `ensure_data_sources()` (course OMOP tables required, full release
+optional); full-release-only notebooks (00-06) use `ensure_local_data()`:
 
     from scripts.local_setup import ensure_local_data
     data_root = ensure_local_data()
@@ -73,3 +75,28 @@ def ensure_local_data(data_dir: str | Path | None = None) -> Path:
     os.environ["EHRSHOT_DATA_ROOT"] = str(data_dir)
     print(f"EHRSHOT_DATA_ROOT = {data_dir}")
     return data_dir
+
+
+def ensure_data_sources():
+    """The setup call for team-runnable notebooks (Oct 2 2026 onward).
+
+    Requires only the course's OMOP tables (every team member has them):
+    $EHRSHOT_TRIMMED_ROOT, or ~/ehrshot-data/trimmed, or
+    ~/ehrshot-exploration/data. The full Stanford release is optional --
+    extracted if its archives are in ~/ehrshot-data (or $EHRSHOT_DATA_ROOT),
+    otherwise CLMBR-dependent steps are skipped. Returns
+    `ehrgraph.data.source.DataSources`.
+    """
+    from ehrgraph.data.source import find_data_sources
+
+    full_dir = Path(os.environ.get("EHRSHOT_DATA_ROOT", DEFAULT_DATA_DIR))
+    for archive_name, produces_dir in ARCHIVES:
+        if (full_dir / archive_name).exists() and not (full_dir / produces_dir).exists():
+            _extract(full_dir / archive_name, full_dir)
+
+    sources = find_data_sources()
+    os.environ["EHRSHOT_TRIMMED_ROOT"] = str(sources.trimmed)
+    if sources.full is not None:
+        os.environ["EHRSHOT_DATA_ROOT"] = str(sources.full)
+    print(sources.describe())
+    return sources

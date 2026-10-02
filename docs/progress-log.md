@@ -275,3 +275,30 @@ Coding era check: only 3 of 18,698 long-stay safe links and 6 of 10,535 hyperten
 **Verification:** `pytest` 129 passed, `ruff` clean, notebook 11 executed end-to-end against on-device data (about 11 minutes). All finding numbers cross-checked against the CSVs.
 
 **Follow-ups / open questions:** Why EHRSHOT's exclusion missed the 139 prior-coded discharges is not established (the shipped vocabulary does map I10 and 401.9 into the subtree)—a careful question to Stanford's team, not a claim. Remaining Project 1 issues: #19 (report) and #20 (submit by Oct 23).
+
+---
+
+## #37 — Run Project 1 on the course OMOP tables; CLMBR optional; publish executed notebooks
+**Date:** 2026-10-02 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/38 · **Branch:** trimmed-omop-data-source
+
+**What happened:** Team members have the course's trimmed OMOP tables but not Stanford's full EHRSHOT release, preventing them from reproducing Project 1 results. On Oct 2, team decided to make the course tables the primary data source, with CLMBR-dependent steps skipped cleanly for teammates without the full release. Built `src/ehrgraph/data/omop.py` containing OmopTables and OmopDatabase, which present the course CSVs in the same shape as the meds_reader database, so the entire existing pipeline runs unchanged. Two code modes: standard SNOMED concepts (primary, "OMOP/<concept_id>") or original billing codes ("ICD9CM/...", "ICD10CM/..."). Built `src/ehrgraph/data/omop_labels.py` with outcome labels rebuilt from EHRSHOT's published definitions. Long stay: inpatient visits not same-day, prediction at 23:59 on admission day, positive if >= 7 days. New hypertension: inpatient visits not same-day, prediction at 23:59 on discharge day, skipped if already diagnosed (SNOMED 59621000 or descendants), positive if first diagnosed within 365 days. Against Stanford's official labels, long stay shares 6,930 of 6,995 prediction times (99.1%) with 99.84% outcome agreement; hypertension shares 3,499 of 3,764 (93.0%) with 99.40% agreement—the hypertension gap is 139 already-diagnosed discharges Stanford keeps (55 of 516 positives, 84 of 3,248 negatives) plus about 115 same-day visits. Built `src/ehrgraph/data/source.py` and `scripts/local_setup.ensure_data_sources()` making course tables required (EHRSHOT_TRIMMED_ROOT) and full release optional (EHRSHOT_DATA_ROOT). Refactored `src/ehrgraph/netstats/task_analysis.py` with new `task_graphs_from_labels` working on any label table and any database; CLMBR is optional, Dirichlet energy computed only on fingerprinted nodes and skipped entirely without the full release. Executed notebooks 07-11 with outputs committed to `notebooks/executed/`. Built `src/ehrgraph/eval/publish.py` and `scripts/publish_executed.py` that check every output against real patient ids and prediction times on the publishing machine before writing. Built `scripts/check_executed_notebooks.py` running in pre-commit hook and data-guard CI job—no patient-id columns, no tables over 100 rows, no minute-resolution timestamps, no id-shaped 9-10 digit numbers, max 5 MB. Tested: planted real patient ids caught by both checks. Re-ran results on course tables showing same conclusions as before: long stay homophily safe/leaky/null 0.211/0.201/0.010; hypertension 0.226/0.263/0.002, and without same-patient links 0.115/0.154. Notebook 08 billing codes split into 69 ICD-10 and 47 ICD-9 codes with 0 of 584 links between them; SNOMED concepts give one piece of 60 concepts, best cut 13 communities with modularity 0.566. Notebook 11 shows era alone explains at most 2% (long stay) and 6% (hypertension) of homophily; conclusions hold with billing codes and with official labels; hypertension leakage gap ranges from +0.038 to +0.056 across versions. Teammate simulation: notebook 10 run in separate repo copy with no full release ran cleanly, skipped CLMBR (0 of 3,511 fingerprints), gave identical homophily 0.2255. Updated docs: DATA_ACCESS.md (who needs which data), README.md (setup for teammates), notebooks/README.md (which notebook needs which data; notebooks 00-06 remain full-release development history), docs/results-schema.md (new graph_variant values and metrics).
+
+**Code and packages touched:**
+- `src/ehrgraph/data/omop.py` (new) — OmopTables and OmopDatabase presenting course CSVs in meds_reader shape
+- `src/ehrgraph/data/omop_labels.py` (new) — outcome labels rebuilt from EHRSHOT definitions
+- `src/ehrgraph/data/source.py` (new) — course/full release data source handling
+- `src/ehrgraph/eval/publish.py` (new) — real patient id/prediction time validation before publishing
+- `src/ehrgraph/netstats/task_analysis.py` — task_graphs_from_labels with optional CLMBR, new n_labels and clmbr_coverage rows
+- `src/ehrgraph/viz/network_figures.py` — shared visualization pipeline
+- `scripts/local_setup.py` — ensure_data_sources with optional/required flagging
+- `scripts/publish_executed.py`, `scripts/check_executed_notebooks.py` (new) — publishing and privacy scanning
+- `.pre-commit-config.yaml`, `.github/workflows/data-guard.yml` — privacy checks in pre-commit and CI
+- `tests/test_omop.py` (7 tests), `tests/test_publish.py` (6 tests) — new tests
+- `notebooks/07-11` — executed notebooks with outputs
+- `results/aggregate/` — CSVs and figures
+- `docs/DATA_ACCESS.md`, `README.md`, `notebooks/README.md`, `docs/results-schema.md` — documentation updates
+- No new dependencies
+
+**Verification:** `pytest` 142 passed, `ruff` clean, notebooks 07, 08, 10, 11 executed end-to-end on real data and 09 on CSVs, finding numbers cross-checked against CSVs, all executed notebooks passed exact privacy scan.
+
+**Follow-ups / open questions:** Teammates should check whether their course download includes concept.csv (without it, concepts show as IDs rather than names). Teammates request their own full-release access before Project 2. Project 1 report (#19) and submission (#20) remain.

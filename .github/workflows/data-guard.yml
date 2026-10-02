@@ -38,6 +38,7 @@ jobs:
           for f in $(git diff --name-only --diff-filter=A "$BASE" "$HEAD" || true); do
             case "$f" in
               uv.lock|r-viz/renv.lock) continue ;;
+              notebooks/executed/*) continue ;;  # 5 MB cap, enforced by the scan step below
             esac
             if [ -f "$f" ]; then
               size=$(stat -c%s "$f")
@@ -51,12 +52,15 @@ jobs:
       - name: Fail if any tracked notebook has non-empty outputs
         run: |
           set -e
-          for nb in $(git ls-files '*.ipynb'); do
+          for nb in $(git ls-files '*.ipynb' | grep -v '^notebooks/executed/'); do
             if grep -q '"outputs": \[[^]]' "$nb" 2>/dev/null; then
               echo "::error::$nb has non-empty outputs — run nbstripout before committing"
               exit 1
             fi
           done
+
+      - name: Privacy-scan executed notebooks (notebooks/executed/ keeps outputs on purpose)
+        run: python3 scripts/check_executed_notebooks.py
 
       - name: Fail if anything under data/ other than README.md/checksums.txt is tracked
         run: |
