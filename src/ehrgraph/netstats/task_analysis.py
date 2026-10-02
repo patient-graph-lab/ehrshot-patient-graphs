@@ -46,8 +46,14 @@ from ehrgraph.netstats.homophily import (
 from ehrgraph.netstats.structure import structural_stats
 
 #: The primary graph configuration (PROJECT_GUIDE.md Part 4 items 6 and 12):
-#: diagnoses only, binary presence per node, TF-IDF + cosine, mutual k-NN, k=10.
-PRIMARY_VARIANT = "cond_binary_perpatient_tfidf_mutual_k10"
+#: diagnoses only, binary presence per node, TF-IDF + cosine, mutual k-NN, k=10,
+#: built from the course OMOP tables' standard concepts with rebuilt labels
+#: (team decision Oct 2 2026 -- every member can reproduce it).
+PRIMARY_VARIANT = "omop_concept_binary_perpatient_tfidf_mutual_k10"
+#: Same, on the original ICD billing codes (keeps the 2015 coding-era split).
+SOURCE_CODES_VARIANT = "omop_source_binary_perpatient_tfidf_mutual_k10"
+#: Same as primary, but with Stanford's official labels (full release needed).
+OFFICIAL_LABELS_VARIANT = "omop_concept_binary_perpatient_tfidf_mutual_k10_official_labels"
 MEASURES = ["degree", "betweenness", "closeness", "eigenvector"]
 COMMUNITY_METRICS = [
     "adjusted_rand_index",
@@ -61,12 +67,13 @@ COMMUNITY_METRICS = [
 @dataclass
 class TaskGraphs:
     task: str
-    nodes: list  # (patient_id, prediction_time), the row order of `features`
+    nodes: list  # (patient_id, prediction_time)
     labels: dict  # node -> 0/1
     graphs: dict  # "safe", "leaky", "null" (= nulls[0])
     nulls: list
-    features: np.ndarray  # centered CLMBR embeddings, one row per node
+    features: np.ndarray | None  # centered CLMBR embeddings, rows = feature_nodes; None if absent
     vectors: dict = field(default_factory=dict)  # "safe"/"leaky" -> (matrix, codes)
+    feature_nodes: list = field(default_factory=list)  # nodes that have a CLMBR fingerprint
 
     @property
     def prevalence(self) -> float:
@@ -92,22 +99,30 @@ def build_task_graphs(
     labels: dict,
     safe_vectors: tuple[sp.spmatrix, list],
     leaky_vectors: tuple[sp.spmatrix, list],
-    features: np.ndarray,
+    features: np.ndarray | None,
     n_null: int = 10,
     k: int = 10,
+    feature_nodes: list | None = None,
 ) -> TaskGraphs:
     """Pure graph construction from precomputed vectors -- no data access,
-    so tests can drive it with synthetic inputs. `features` must already be
-    in `nodes` order; it is centered here (an offset shared by every
-    patient isn't similarity, and would lower every graph's Dirichlet
-    energy by the same amount)."""
-    if features.shape[0] != len(nodes):
+    so tests can drive it with synthetic inputs.
+
+    `features` (CLMBR fingerprints) is optional: None when the full release
+    isn't on this machine, and then Dirichlet energy is skipped. Its rows are
+    `feature_nodes` (default: all `nodes`, in order) -- rebuilt labels can
+    include a few stays Stanford never fingerprinted. It is centered here (an
+    offset shared by every patient isn't similarity, and would lower every
+    graph's Dirichlet energy by the same amount)."""
+    feature_nodes = list(nodes if feature_nodes is None else feature_nodes)
+    if features is not None and features.shape[0] != len(feature_nodes):
         raise ValueError("features must have one row per node, in `nodes` order.")
     safe = build_similarity_graph(safe_vectors[0], nodes, k=k)
     leaky = build_similarity_graph(leaky_vectors[0], nodes, k=k)
     nulls = [build_null_graph(safe, seed=s) for s in range(n_null)]
-    centered = np.asarray(features, dtype=np.float64)
-    centered = centered - centered.mean(axis=0)
+    centered = None
+    if features is not None:
+        centered = np.asarray(features, dtype=np.float64)
+        centered = centered - centered.mean(axis=0)
     return TaskGraphs(
         task=task,
         nodes=list(nodes),
@@ -116,6 +131,61 @@ def build_task_graphs(
         nulls=nulls,
         features=centered,
         vectors={"safe": safe_vectors, "leaky": leaky_vectors},
+        feature_nodes=feature_nodes if features is not None else [],
+    )
+
+
+def task_graphs_from_labels(
+    db,
+    labels_df: pd.DataFrame,
+    task: str,
+    clmbr_path: Path | None = None,
+    n_null: int = 10,
+    k: int = 10,
+    table: str = "condition",
+    exclude: set | None = None,
+) -> TaskGraphs:
+    """Graphs for one task from any label table (patient_id,
+    prediction_time, value) and any meds_reader-shaped `db` -- the course
+    OMOP tables (`ehrgraph.data.omop.OmopDatabase`, primary) or the full
+    release's meds_reader database.
+
+    `clmbr_path`: the full release's clmbr_features.pkl, or None. Nodes
+    without a fingerprint are kept in every graph; Dirichlet energy is then
+    measured on the fingerprinted ones only. `exclude`: nodes to drop before
+    anything is built (sensitivity analyses)."""
+    labels_df = labels_df[labels_df["patient_id"].isin(set(db))].reset_index(drop=True)
+    nodes = list(zip(labels_df["patient_id"], labels_df["prediction_time"], strict=True))
+    if exclude:
+        keep = [n not in exclude for n in nodes]
+        labels_df = labels_df[keep].reset_index(drop=True)
+        nodes = [n for n, k_ in zip(nodes, keep, strict=True) if k_]
+    labels = dict(zip(nodes, labels_df["value"].astype(int), strict=True))
+    if len(labels) != len(nodes):
+        raise ValueError("duplicate (patient_id, prediction_time) nodes in the labels")
+
+    safe_m, _, safe_codes = build_node_vectors(db, nodes, table=table, censor=True)
+    leaky_m, _, leaky_codes = build_node_vectors(db, nodes, table=table, censor=False)
+
+    features, feature_nodes = None, None
+    if clmbr_path is not None:
+        from ehrgraph.eval.baseline import load_clmbr_features
+
+        feats = load_clmbr_features(Path(clmbr_path))
+        feats = feats.set_index(["patient_id", "prediction_time"])["embedding"]
+        feature_nodes = [n for n in nodes if n in feats.index]
+        features = np.stack([feats.loc[n] for n in feature_nodes]) if feature_nodes else None
+
+    return build_task_graphs(
+        task,
+        nodes,
+        labels,
+        (safe_m, safe_codes),
+        (leaky_m, leaky_codes),
+        features,
+        n_null,
+        k,
+        feature_nodes=feature_nodes,
     )
 
 
@@ -128,40 +198,21 @@ def load_task_graphs(
     table: str = "condition",
     exclude: set | None = None,
 ) -> TaskGraphs:
-    """Reads a task's official labels and CLMBR features from the on-device
-    EHRSHOT_ASSETS, builds safe (censored) and leaky (full-history) node
-    vectors, and hands off to `build_task_graphs`.
-
-    `db` may be a `vocabulary.MappedConditions` view (SNOMED-harmonized
-    graphs). `exclude`: (patient_id, prediction_time) nodes to drop before
-    anything is built -- e.g. the clean-cohort sensitivity analysis."""
-    from ehrgraph.eval.baseline import load_clmbr_features
-
+    """Full-release path: Stanford's official labels and CLMBR fingerprints
+    from EHRSHOT_ASSETS (needs your own full-release download). `db` may be
+    the meds_reader database or a `vocabulary.MappedConditions` view."""
     labels_df = pd.read_csv(
         Path(assets) / "benchmark" / task / "labeled_patients.csv", parse_dates=["prediction_time"]
     )
-    labels_df = labels_df[labels_df["patient_id"].isin(set(db))].reset_index(drop=True)
-    nodes = list(zip(labels_df["patient_id"], labels_df["prediction_time"], strict=True))
-    if exclude:
-        keep = [n not in exclude for n in nodes]
-        labels_df = labels_df[keep].reset_index(drop=True)
-        nodes = [n for n, k_ in zip(nodes, keep, strict=True) if k_]
-    labels = dict(zip(nodes, labels_df["value"].astype(int), strict=True))
-    if len(labels) != len(nodes):
-        raise ValueError("duplicate (patient_id, prediction_time) nodes in the labels file")
-
-    safe_m, _, safe_codes = build_node_vectors(db, nodes, table=table, censor=True)
-    leaky_m, _, leaky_codes = build_node_vectors(db, nodes, table=table, censor=False)
-
-    feats = load_clmbr_features(Path(assets) / "features" / "clmbr_features.pkl")
-    feats = feats.set_index(["patient_id", "prediction_time"])["embedding"]
-    missing = [n for n in nodes if n not in feats.index]
-    if missing:
-        raise ValueError(f"{len(missing)} nodes have no CLMBR embedding")
-    features = np.stack([feats.loc[n] for n in nodes])
-
-    return build_task_graphs(
-        task, nodes, labels, (safe_m, safe_codes), (leaky_m, leaky_codes), features, n_null, k
+    return task_graphs_from_labels(
+        db,
+        labels_df,
+        task,
+        clmbr_path=Path(assets) / "features" / "clmbr_features.pkl",
+        n_null=n_null,
+        k=k,
+        table=table,
+        exclude=exclude,
     )
 
 
@@ -227,15 +278,21 @@ def code_outcome_gaps(matrix: sp.spmatrix, codes: list, y: np.ndarray) -> pd.Dat
     )
 
 
-def _homophily_metrics(graph: nx.Graph, labels: dict, nodes: list, features: np.ndarray) -> dict:
+def _homophily_metrics(
+    graph: nx.Graph, labels: dict, feature_nodes: list, features: np.ndarray | None
+) -> dict:
     ci = class_insensitive_homophily(graph, labels)
-    return {
+    out = {
         "edge_homophily": edge_homophily(graph, labels),
         "class_insensitive_homophily": ci["class_insensitive_homophily"],
         "same_outcome_rate_positive": ci["per_class"][1],
         "same_outcome_rate_negative": ci["per_class"][0],
-        "dirichlet_energy_clmbr": dirichlet_energy(graph, nodes, features),
-    } | same_patient_stats(graph, labels)
+    }
+    if features is not None:
+        # on the fingerprinted nodes only (all of them with official labels)
+        sub = graph.subgraph(feature_nodes)
+        out["dirichlet_energy_clmbr"] = dirichlet_energy(sub, feature_nodes, features)
+    return out | same_patient_stats(graph, labels)
 
 
 def _community_outcome(partition: pd.Series, y: pd.Series, min_size: int) -> dict:
@@ -341,14 +398,18 @@ def analyze_task(
         add_null(f"leiden_outcome_{m}", [o[m] for o in null_outcome])
 
     # Homophily, Dirichlet energy, same-patient links (#13, #15)
-    homophily = {n: _homophily_metrics(tg.graphs[n], labels, tg.nodes, tg.features) for n in real}
-    null_h = [_homophily_metrics(g, labels, tg.nodes, tg.features) for g in tg.nulls]
+    homophily = {
+        n: _homophily_metrics(tg.graphs[n], labels, tg.feature_nodes, tg.features) for n in real
+    }
+    null_h = [_homophily_metrics(g, labels, tg.feature_nodes, tg.features) for g in tg.nulls]
     for n in real:
         for metric, value in homophily[n].items():
             add(n, metric, value)
     for metric in null_h[0]:
         add_null(metric, [r[metric] for r in null_h])
     add("reference", "prevalence", tg.prevalence)
+    add("reference", "n_labels", len(tg.nodes))
+    add("reference", "clmbr_coverage", len(tg.feature_nodes) / len(tg.nodes))
 
     # Which links leakage changes (#15)
     edge_sets = edge_set_stats(tg.graphs["safe"], tg.graphs["leaky"], labels)

@@ -169,11 +169,15 @@ def layout_figure(tg: TaskGraphs, positive: str, negative: str, seed: int = 0):
 
 
 def homophily_energy_figure(an: TaskAnalysis):
-    fig, axes = plt.subplots(1, 2, figsize=(12, 3.8))
-    panels = (
-        ("class_insensitive_homophily", "Class-insensitive homophily\n(0 = random)"),
-        ("dirichlet_energy_clmbr", "Dirichlet energy, CLMBR fingerprints\n(lower = smoother)"),
-    )
+    """Homophily, plus Dirichlet energy when CLMBR fingerprints were
+    available (full release); one panel otherwise."""
+    panels = [("class_insensitive_homophily", "Class-insensitive homophily\n(0 = random)")]
+    if "dirichlet_energy_clmbr" in an.null_homophily[0]:
+        panels.append(
+            ("dirichlet_energy_clmbr", "Dirichlet energy, CLMBR fingerprints\n(lower = smoother)")
+        )
+    fig, axes = plt.subplots(1, len(panels), figsize=(6 * len(panels), 3.8), squeeze=False)
+    axes = axes[0]
     ypos = {"safe": 2, "leaky": 1, "null": 0}
     for ax, (metric, title) in zip(axes, panels, strict=True):
         null_vals = np.array([r[metric] for r in an.null_homophily])
