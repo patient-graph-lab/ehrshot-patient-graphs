@@ -46,7 +46,9 @@ def structural_stats(graph: nx.Graph, path_sources: int | None = 500, seed: int 
     """Density, degree summary, clustering, assortativity, and LCC path
     lengths for one graph."""
     degrees = np.array([d for _, d in graph.degree()], dtype=float)
-    largest_cc = graph.subgraph(max(nx.connected_components(graph), key=len))
+    # .copy(): BFS over a subgraph *view* re-checks the node filter on every
+    # neighbor -- 7x slower on ~7k-node graphs (27 s vs 4 s, same result).
+    largest_cc = graph.subgraph(max(nx.connected_components(graph), key=len)).copy()
 
     return {
         "density": nx.density(graph),
