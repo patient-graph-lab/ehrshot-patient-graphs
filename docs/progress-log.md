@@ -196,3 +196,38 @@ Built and executed notebook `notebooks/06_disease_trajectory_graph.ipynb` end-to
 **Verification:** pytest 105 passed, ruff clean, notebook executed end to end three times against real on-device data; final run produced committed CSV and figures; numbers cross-checked against CSV.
 
 **Follow-ups / open questions:** #14 (Girvan-Newman dendrogram), #15 (safe-vs-leaky-vs-null structural comparison), #16 (repeat for Hypertension), #18 (freeze aggregate CSV schema). Notebook 05 could later be switched to build_similarity_graph instead of inlining.
+
+---
+
+## #15, #16, #17 — Leakage deep dive, Hypertension network analysis, Task A vs Task B
+**Date:** 2026-10-02 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/33 · **Branch:** issue-15-16-17-leakage-deep-dive-and-task-b
+
+**What happened:** Refactored notebook 07's analysis code into reusable library modules—`src/ehrgraph/netstats/task_analysis.py` (build_task_graphs, load_task_graphs, analyze_task, summary_table, plus helpers same_patient_stats, edge_set_stats, code_outcome_gaps) and `src/ehrgraph/viz/network_figures.py`—so both tasks now run identical code from a shared library, enabling Project 2's graph-variant sweep to reuse it without duplication. Regression check: re-running Task A through the library reproduced all 169 previously committed values exactly, confirming refactoring correctness. Built comprehensive new issue #15 checks that apply to both tasks: share of links joining two admissions of the same patient, homophily with and without same-patient links, which links leakage adds or removes (shared / safe-only / leaky-only comparison), and strongest single diagnosis code's positive-vs-negative prevalence gap.
+
+For Task A (Long Length of Stay): same-patient links account for 37.5% of safe-graph links, agree on outcome 68% of the time (chance baseline 62%), and removing them actually *raises* homophily from 0.209 to 0.237 in the safe graph (from 0.201 to 0.242 in leaky). The leaky-only links join same-outcome patients 68.5% of the time versus 71.7% for the safe-only links they replace—leakage changes graph shape but adds no outcome signal for long stay prediction.
+
+Built entirely new notebook 10 (Task B, Hypertension): 3,760 discharges from 2,324 patients, prevalence 0.137. Homophily safe 0.282 / leaky 0.332 / null 0.004; without same-patient links this drops to 0.136 / 0.193 (leaky 42% above safe once same-patient links are removed). Community structure (eta-squared) 0.076 safe / 0.123 leaky. The leaky vectors contain ICD-9 401.9 (essential hypertension) in 67% of positives versus 5% of negatives (prevalence gap 0.62), compared to just 0.12 for safe. Same-patient links comprise 31% of all links and agree on outcome 96% of the time—they carry roughly half of the safe graph's homophily. However, the graph dilutes even this near-answer-key outcome information (+0.05 homophily signal) because TF-IDF down-weights common codes like hypertension that appear in most patients.
+
+Built notebook 09 (new): direct Task A vs Task B comparison, reading only aggregate CSVs (no patient data access needed). Conclusion: leakage is mechanistically inert for long stay (no outcome signal added) and visibly present for hypertension (same-patient links carry outcome information) *because hypertension itself is a diagnosis code*, making same-patient links inherently informative for this specific prediction task.
+
+Performance optimization: refactored `structure.py` to run BFS on a copied largest connected component instead of a networkx subgraph view object, achieving 7x speedup (27 s down to 4 s on a 7,000-node graph) with identical results. Found during live profiling with py-spy when the first Task A run exceeded 21 minutes; final timings: Task A 11 min, Task B 8 min.
+
+Metric renames for cross-task generality: `same_outcome_rate_long_stay` → `same_outcome_rate_positive` (and `_negative`), `long_stay_prevalence` → `prevalence`.
+
+**Code and packages touched:**
+- `src/ehrgraph/netstats/task_analysis.py` (new) — build_task_graphs, load_task_graphs, analyze_task, summary_table, same_patient_stats, edge_set_stats, code_outcome_gaps
+- `src/ehrgraph/viz/network_figures.py` (new) — shared network visualization pipeline for both tasks
+- `src/ehrgraph/netstats/structure.py` — refactored BFS on copied component (7x faster)
+- `tests/test_task_analysis.py` (new) — 5 tests for cross-task analysis functions
+- `notebooks/07_network_stats_task_a.ipynb` — rebuilt using new task_analysis library
+- `notebooks/09_task_comparison.ipynb` (new) — Task A vs Task B aggregate CSV comparison
+- `notebooks/10_network_stats_task_b.ipynb` (new) — complete Hypertension network analysis
+- `notebooks/README.md` — updated with Task B instructions
+- `results/aggregate/network_stats_task_a.csv` — 193 rows
+- `results/aggregate/network_stats_task_b.csv` (new) — Hypertension results
+- 14 figures across notebooks 09 and 10
+- No new dependencies
+
+**Verification:** `pytest` 110 passed, `ruff` clean, notebooks 07 and 10 executed end-to-end against on-device data with all findings numbers cross-checked against the aggregate CSVs, notebook 09 executed against CSVs only (no patient data needed), CI passing on PR #33.
+
+**Follow-ups / open questions:** Decide how to treat same-patient links before Project 2 begins—report every homophily number both with and without same-patient links; consider a no-same-patient graph variant in the sweep. 9% of Hypertension positives already have an I10 code before prediction_time in safe vectors—may reflect how EHRSHOT defines "new" diagnoses but not yet verified. Remaining Project 1 issues: #14 (Girvan-Newman dendrogram), #18 (freeze results schema), #19 (report), #20 (submit).
