@@ -5,6 +5,7 @@ import pytest
 from ehrgraph.data.loader import Event
 from ehrgraph.graphs.trajectory import (
     bonferroni_significant,
+    build_population_trajectory_graph,
     build_trajectory_graph,
     compute_relative_risks,
     first_occurrence_times,
@@ -213,3 +214,40 @@ def test_symmetrize_max_keeps_one_sided_edges():
     directed.add_edge("A", "B", weight=3.0)
     undirected = symmetrize_max(directed)
     assert undirected["A"]["B"]["weight"] == pytest.approx(3.0)
+
+
+def _two_era_cohort() -> FakeDatabase:
+    """The same A -> B pattern coded two ways: patients 0-19 in "ICD9"
+    codes, 20-39 in "ICD10" codes, plus 60 patients with nothing."""
+    subjects = {}
+    for i in range(40):
+        era = "ICD9" if i < 20 else "ICD10"
+        events = [
+            Event(
+                time=datetime(2012 if era == "ICD9" else 2019, 1, 1),
+                code=f"{era}/A",
+                table="condition",
+            )
+        ]
+        if i % 20 < 16:
+            events.append(
+                Event(
+                    time=datetime(2012 if era == "ICD9" else 2019, 2, 1),
+                    code=f"{era}/B",
+                    table="condition",
+                )
+            )
+        subjects[i] = FakeSubject(i, events)
+    for i in range(40, 100):
+        subjects[i] = FakeSubject(i, [])
+    return FakeDatabase(subjects)
+
+
+def test_code_map_merges_era_specific_codes_into_one_trajectory():
+    db = _two_era_cohort()
+    raw, _ = build_population_trajectory_graph(db, n_codes=4, min_support=5)
+    assert set(raw.edges()) == {("ICD9/A", "ICD9/B"), ("ICD10/A", "ICD10/B")}
+
+    code_map = {"ICD9/A": "S/A", "ICD10/A": "S/A", "ICD9/B": "S/B", "ICD10/B": "S/B"}
+    merged, _ = build_population_trajectory_graph(db, n_codes=4, min_support=5, code_map=code_map)
+    assert set(merged.edges()) == {("S/A", "S/B")}

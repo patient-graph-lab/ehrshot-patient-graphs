@@ -164,3 +164,71 @@ def symmetrize_max(graph: nx.DiGraph) -> nx.Graph:
             weight = max(weight, undirected[u][v]["weight"])
         undirected.add_edge(u, v, weight=weight)
     return undirected
+
+
+class _MappedConditions:
+    """Read-only view of a meds_reader database whose condition events
+    carry mapped codes (e.g. ICD -> SNOMED standard concept). Only
+    condition events are kept -- all the trajectory builder reads."""
+
+    def __init__(self, db, code_map: dict[str, str]):
+        self._db, self._map = db, code_map
+
+    def __iter__(self):
+        return iter(self._db)
+
+    def __getitem__(self, subject_id):
+        from types import SimpleNamespace
+
+        events = [
+            SimpleNamespace(time=e.time, code=self._map.get(e.code, e.code), table=e.table)
+            for e in self._db[subject_id].events
+            if getattr(e, "table", None) == "condition"
+        ]
+        return SimpleNamespace(subject_id=subject_id, events=events)
+
+
+def build_population_trajectory_graph(
+    db,
+    concept_table: pd.DataFrame | None = None,
+    n_codes: int = 200,
+    window: timedelta = timedelta(days=365),
+    min_support: int = 10,
+    alpha: float = 0.05,
+    code_map: dict[str, str] | None = None,
+) -> tuple[nx.DiGraph, dict[str, str]]:
+    """Notebook 06's full construction in one call, so notebook 08 (the
+    Girvan-Newman dendrogram) builds exactly the same graph: the `n_codes`
+    most common condition codes across every patient, relative risks within
+    `window`, `min_support`, Bonferroni over all n*(n-1) ordered pairs.
+    Returns the directed graph and code -> readable name.
+
+    `code_map` (e.g. from `vocabulary.standard_concept_map`) rewrites codes
+    before anything is counted, so an ICD-9 and an ICD-10 code for the same
+    disease become one node instead of two era-specific ones."""
+    from ehrgraph.data.cohort import patient_code_counts
+    from ehrgraph.data.vocabulary import resolve_codes
+
+    if code_map is not None:
+        db = _MappedConditions(db, code_map)
+    patient_ids = list(db)
+    counts = patient_code_counts(db, patient_ids, table="condition")
+    top_codes = [code for code, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:n_codes]]
+
+    code_names = {c: c for c in top_codes}
+    if concept_table is not None:
+        resolved = resolve_codes(pd.Series(top_codes), concept_table).set_index("code")
+        code_names |= resolved["concept_name"].dropna().to_dict()
+
+    first_times = first_occurrence_times(
+        db, patient_ids, table="condition", codes_of_interest=set(top_codes)
+    )
+    rr_df = compute_relative_risks(
+        first_times,
+        codes=top_codes,
+        window=window,
+        min_support=min_support,
+        n_population=len(patient_ids),
+    )
+    significant = bonferroni_significant(rr_df, n_codes=len(top_codes), alpha=alpha)
+    return build_trajectory_graph(significant, code_names=code_names), code_names

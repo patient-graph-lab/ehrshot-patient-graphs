@@ -43,6 +43,10 @@ class FakeDatabase:
     def __getitem__(self, subject_id: int) -> FakeSubject:
         return self._subjects[subject_id]
 
+    def __iter__(self):
+        # Like meds_reader.SubjectDatabase: iterating yields subject ids.
+        return iter(self._subjects)
+
 
 def cohort_with_conditions() -> FakeDatabase:
     """3 subjects with condition/demographic events, shaped like real
