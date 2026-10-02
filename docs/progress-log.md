@@ -231,3 +231,47 @@ Metric renames for cross-task generality: `same_outcome_rate_long_stay` → `sam
 **Verification:** `pytest` 110 passed, `ruff` clean, notebooks 07 and 10 executed end-to-end against on-device data with all findings numbers cross-checked against the aggregate CSVs, notebook 09 executed against CSVs only (no patient data needed), CI passing on PR #33.
 
 **Follow-ups / open questions:** Decide how to treat same-patient links before Project 2 begins—report every homophily number both with and without same-patient links; consider a no-same-patient graph variant in the sweep. 9% of Hypertension positives already have an I10 code before prediction_time in safe vectors—may reflect how EHRSHOT defines "new" diagnoses but not yet verified. Remaining Project 1 issues: #14 (Girvan-Newman dendrogram), #18 (freeze results schema), #19 (report), #20 (submit).
+
+---
+
+## #14 — Girvan-Newman dendrogram on the disease-trajectory graph
+**Date:** 2026-10-02 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/34 · **Branch:** issue-14-girvan-newman-dendrogram
+
+**What happened:** Built the final network-analysis stage for the trajectory graph from issue #10, running Girvan-Newman edge-betweenness clustering all the way to complete fragmentation, then converting the full split sequence into a scipy linkage matrix and picking the most modular level. The linkage-matrix conversion was the "fiddly" part issue #10's planning had warned about—it required reconstructing parent node identities across merges and handling disconnected pieces by joining them synthetically above every real merge. Added vocabulary.py's standard_concept_map to unify raw billing codes into SNOMED concepts: maps every source code to its OMOP standard concept via the shipped concept_relationship "Maps to" (ICD-9 401.9 and ICD-10 I10 both → SNOMED 59621000). This mapping revealed a critical artifact: on raw billing codes, the trajectory graph's two large pieces were the two coding systems themselves—70 codes all ICD-10 and 50 codes all ICD-9, with zero of 588 links between them, because the US switched from ICD-9 to ICD-10 in October 2015, and a one-year window rarely spans the switch.
+
+After mapping to SNOMED (17,828 codes → 8,429 concepts), the graph unified into one main piece of 59 concepts (75 concepts and 135 links in total). Girvan-Newman produced 15 communities at modularity 0.536; Louvain achieved 12 communities at modularity 0.562 with ARI 0.57 agreement. The communities made real clinical sense: sepsis/acute renal failure, heart failure/cardiomyopathy, respiratory failure/pneumonia, coronary disease, atrial arrhythmias, pleural disease. Built notebook 08 with results/aggregate/trajectory_dendrogram.csv and 3 figures.
+
+**Code and packages touched:**
+- `src/ehrgraph/netstats/dendrogram.py` (new) — runs Girvan-Newman to full fragmentation, converts split sequence to scipy linkage matrix, finds most modular level, handles disconnected pieces
+- `src/ehrgraph/viz/dendrogram_figures.py` (new) — visualization for dendrogram results
+- `src/ehrgraph/graphs/trajectory.py` — build_population_trajectory_graph with optional code_map
+- `src/ehrgraph/data/vocabulary.py` — standard_concept_map for OMOP mapping
+- `tests/test_dendrogram.py` (new) — 4 tests
+- `notebooks/08_trajectory_dendrogram.ipynb` (new) — end-to-end analysis with dendrogram visualization
+
+**Verification:** `pytest` 116 passed, `ruff` clean, notebook 08 executed end-to-end (about 1 minute) against on-device data. FakeDatabase in tests now iterable like meds_reader.
+
+**Follow-ups / open questions:** SNOMED harmonization should become a core arm of the Project 2 graph-variant sweep—the patient graphs show the same era split, quantified in #35.
+
+---
+
+## #18, #35 — Results schema frozen; robustness checks (coding era, SNOMED graphs, clean cohort)
+**Date:** 2026-10-02 · **PR:** https://github.com/patient-graph-lab/ehrshot-patient-graphs/pull/36 · **Branch:** robustness-checks-and-schema
+
+**What happened:** Issue #18 froze the results/aggregate format at version 1.0 with docs/results-schema.md documenting columns, allowed condition and graph_variant values, metric families with meaning and range, and complete file inventory. tests/test_results_schema.py re-checks every committed results CSV in CI against the schema with no patient data access. Set aggregate.SCHEMA_VERSION = "1.0". Renamed trajectory metric largest_component_size to largest_cc_size for consistency with patient graphs. Issue #35 added notebook 11_robustness_checks.ipynb with three critical checks showing every Project 1 conclusion survives.
+
+Coding era check: only 3 of 18,698 long-stay safe links and 6 of 10,535 hypertension safe links join an ICD-9-only patient to an ICD-10-only patient (era assortativity 0.74 and 0.77). Shuffling outcomes within each era left homophily of only 0.004 (long stay) and 0.019 (hypertension) against actual 0.209 and 0.282, so era explains at most 2% and 7% of the observed homophily. SNOMED-harmonized patient graphs: cross-era links rose to 3-4%. Long stay remained unchanged (safe/leaky homophily 0.212/0.205 vs raw 0.209/0.201). Hypertension safe/leaky 0.292/0.324 vs raw 0.282/0.332, shrinking the leakage gap from +0.050 to +0.032 despite the leaky answer-key single-code gap rising from 0.62 to 0.84—TF-IDF down-weights the merged, very common concept. Clean hypertension cohort using EHRSHOT's own definition (SNOMED 59621000 plus its 16-concept subtree via new descendant_concepts function) found 55 of 515 positives (10.7%) and 84 of 3,245 negatives (2.6%) already had an essential-hypertension code before prediction_time, median 14 days earlier. Without those 139 discharges (3,621 left, prevalence 0.127), homophily safe/leaky is 0.258/0.332 (gap +0.074), and without same-patient links 0.108/0.188 (+74%).
+
+**Code and packages touched:**
+- `docs/results-schema.md` (new) — version 1.0 specification
+- `src/ehrgraph/eval/aggregate.py` — SCHEMA_VERSION = "1.0"
+- `tests/test_results_schema.py` (new) — schema validation in CI
+- `src/ehrgraph/data/vocabulary.py` — MappedConditions made public, descendant_concepts function
+- `src/ehrgraph/netstats/task_analysis.py` — load_task_graphs exclude option, coding_era, era_stats
+- `notebooks/11_robustness_checks.ipynb` (new) — three robustness checks end-to-end
+- `results/aggregate/robustness_checks.csv` (new) — 615 rows of check results
+- `results/aggregate/11_robustness_homophily.png` (new) — figure
+
+**Verification:** `pytest` 129 passed, `ruff` clean, notebook 11 executed end-to-end against on-device data (about 11 minutes). All finding numbers cross-checked against the CSVs.
+
+**Follow-ups / open questions:** Why EHRSHOT's exclusion missed the 139 prior-coded discharges is not established (the shipped vocabulary does map I10 and 401.9 into the subtree)—a careful question to Stanford's team, not a claim. Remaining Project 1 issues: #19 (report) and #20 (submit by Oct 23).

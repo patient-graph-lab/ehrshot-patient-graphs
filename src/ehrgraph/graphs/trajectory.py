@@ -48,6 +48,7 @@ import pandas as pd
 from scipy.stats import binomtest
 
 from ehrgraph.data.loader import Event
+from ehrgraph.data.vocabulary import MappedConditions
 
 
 class SubjectLike(Protocol):
@@ -166,28 +167,6 @@ def symmetrize_max(graph: nx.DiGraph) -> nx.Graph:
     return undirected
 
 
-class _MappedConditions:
-    """Read-only view of a meds_reader database whose condition events
-    carry mapped codes (e.g. ICD -> SNOMED standard concept). Only
-    condition events are kept -- all the trajectory builder reads."""
-
-    def __init__(self, db, code_map: dict[str, str]):
-        self._db, self._map = db, code_map
-
-    def __iter__(self):
-        return iter(self._db)
-
-    def __getitem__(self, subject_id):
-        from types import SimpleNamespace
-
-        events = [
-            SimpleNamespace(time=e.time, code=self._map.get(e.code, e.code), table=e.table)
-            for e in self._db[subject_id].events
-            if getattr(e, "table", None) == "condition"
-        ]
-        return SimpleNamespace(subject_id=subject_id, events=events)
-
-
 def build_population_trajectory_graph(
     db,
     concept_table: pd.DataFrame | None = None,
@@ -210,7 +189,7 @@ def build_population_trajectory_graph(
     from ehrgraph.data.vocabulary import resolve_codes
 
     if code_map is not None:
-        db = _MappedConditions(db, code_map)
+        db = MappedConditions(db, code_map)
     patient_ids = list(db)
     counts = patient_code_counts(db, patient_ids, table="condition")
     top_codes = [code for code, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:n_codes]]

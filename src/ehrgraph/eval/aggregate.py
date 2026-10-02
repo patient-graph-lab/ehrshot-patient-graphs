@@ -6,7 +6,7 @@ point of writing rather than trusting each notebook to remember it:
 
   - the long-format schema every downstream consumer reads
     (`task, condition, graph_variant, metric, value, ci_low, ci_high, seed`
-    -- provisional until issue #18 freezes it);
+    -- frozen at version 1.0 by issue #18, see docs/results-schema.md);
   - no column that could carry a patient identity (`patient_id`,
     `prediction_time`, ...), since one stray per-patient column would turn
     an "aggregate" CSV into exactly the kind of file the DUA forbids;
@@ -24,6 +24,8 @@ from pathlib import Path
 import pandas as pd
 from pandas._libs.parsers import STR_NA_VALUES
 
+#: Frozen 2026-10-02 (issue #18) -- see docs/results-schema.md before changing.
+SCHEMA_VERSION = "1.0"
 SCHEMA = ["task", "condition", "graph_variant", "metric", "value", "ci_low", "ci_high", "seed"]
 REQUIRED = ["task", "condition", "graph_variant", "metric", "value"]
 FORBIDDEN_COLUMNS = {

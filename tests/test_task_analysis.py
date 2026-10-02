@@ -11,7 +11,9 @@ from ehrgraph.netstats.task_analysis import (
     analyze_task,
     build_task_graphs,
     code_outcome_gaps,
+    coding_era,
     edge_set_stats,
+    era_stats,
     same_patient_stats,
 )
 
@@ -138,3 +140,51 @@ def test_build_task_graphs_rejects_misaligned_features():
     vecs = (sp.csr_matrix(np.eye(2)), ["a", "b"])
     with pytest.raises(ValueError, match="one row per node"):
         build_task_graphs("t", tg_nodes, {n: 0 for n in tg_nodes}, vecs, vecs, np.zeros((3, 4)))
+
+
+def test_coding_era_classifies_by_icd_revision():
+    codes = ["ICD9CM/401.9", "ICD10CM/I10", "SNOMED/1"]
+    matrix = sp.csr_matrix(np.array([[1, 0, 1], [0, 1, 0], [1, 1, 0], [0, 0, 1]]))
+    assert list(coding_era(matrix, codes)) == ["icd9", "icd10", "mixed", "none"]
+
+
+def test_era_stats_counts_cross_era_links_and_era_only_homophily():
+    # Two eras, each internally linked; outcome rate differs sharply by
+    # era, so shuffling within era keeps some (era-driven) homophily.
+    g = nx.Graph()
+    era, labels = {}, {}
+    for e, rate_pos in (("icd9", 5), ("icd10", 0)):
+        members = [(e, i) for i in range(10)]
+        for i, n in enumerate(members):
+            era[n], labels[n] = e, int(i < rate_pos)
+        g.add_edges_from((members[i], members[j]) for i in range(10) for j in range(i + 1, 10))
+    g.add_edge(("icd9", 0), ("icd10", 0))
+    stats = era_stats(g, era, labels, n_shuffles=10)
+    assert stats["icd9_icd10_cross_edges"] == 1
+    assert stats["era_assortativity"] > 0.9
+    assert (
+        stats["homophily_era_only_lo"]
+        <= stats["homophily_era_only"]
+        <= stats["homophily_era_only_hi"]
+    )
+
+
+def test_mapped_conditions_feed_node_vectors_with_harmonized_codes():
+    from ehrgraph.data.loader import Event
+    from ehrgraph.data.vocabulary import MappedConditions
+    from ehrgraph.graphs.vectorize import build_node_vectors
+    from tests.fixtures.make_synthetic import FakeDatabase, FakeSubject
+
+    db = FakeDatabase(
+        {
+            1: FakeSubject(1, [Event(time=T0, code="ICD9CM/401.9", table="condition")]),
+            2: FakeSubject(2, [Event(time=T0, code="ICD10CM/I10", table="condition")]),
+        }
+    )
+    mapped = MappedConditions(
+        db, {"ICD9CM/401.9": "SNOMED/59621000", "ICD10CM/I10": "SNOMED/59621000"}
+    )
+    nodes = [(1, T0 + timedelta(days=1)), (2, T0 + timedelta(days=1))]
+    matrix, _, codes = build_node_vectors(mapped, nodes, table="condition", censor=True)
+    assert codes == ["SNOMED/59621000"]
+    assert matrix.toarray().tolist() == [[1.0], [1.0]]  # one shared concept, no era split

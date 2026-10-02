@@ -33,7 +33,7 @@ Per `DATA_ACCESS.md` (team decision, Sep 25), notebooks run locally only. `scrip
 
 ## Saving results back
 
-Any output that should be kept writes to `results/aggregate/` (never `results/per_patient/`) via `ehrgraph.eval.aggregate.write_aggregate`, which enforces the long-format schema (`task, condition, graph_variant, metric, value, ci_low, ci_high, seed` — frozen for good in issue #18) and refuses patient-identifying columns. Figures go to `results/aggregate/figures/`, built only from those summaries. Then a normal commit:
+Any output that should be kept writes to `results/aggregate/` (never `results/per_patient/`) via `ehrgraph.eval.aggregate.write_aggregate`, which enforces the long-format schema (`task, condition, graph_variant, metric, value, ci_low, ci_high, seed` — frozen at version 1.0, see `docs/results-schema.md`) and refuses patient-identifying columns. Figures go to `results/aggregate/figures/`, built only from those summaries. Then a normal commit:
 
 ```bash
 git add results/aggregate/
@@ -54,8 +54,9 @@ git push
 | — | *(no notebook — `tests/test_censoring.py`)* | #9 | synthetic fixture only |
 | 06 | `disease_trajectory_graph` | #10 | trimmed OMOP tables (`condition_occurrence` self-join) |
 | 07 | `network_stats_task_a` | #11, #12, #13, #15 | full dataset, via `ehrgraph.netstats.task_analysis` |
-| 08 | `girvan_newman_dendrogram` | #14 | graph from 06 |
+| 08 | `girvan_newman_dendrogram` | #14 | full dataset: trajectory graph, raw codes and SNOMED-harmonized |
 | 09 | `cross_task_comparison` | #17 | **aggregate CSVs only** -- needs no patient data |
 | 10 | `network_stats_task_b` | #16, #15 | full dataset, same library code as 07 |
+| 11 | `robustness_checks` | #35 | full dataset: coding era, SNOMED-harmonized graphs, clean Task B cohort |
 
 Once 07/10 have written real output to `results/aggregate/`, `r-viz/figures.R` takes over for the final report figures (`r-viz/README.md`).
