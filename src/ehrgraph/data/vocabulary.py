@@ -118,3 +118,60 @@ def standard_concept_map(
         if concept_id in by_id:
             mapping[code] = by_id[concept_id]
     return mapping
+
+
+class MappedConditions:
+    """Read-only view of a meds_reader database whose condition events
+    carry mapped codes (e.g. ICD -> SNOMED via `standard_concept_map`).
+    Only condition events are kept. Iterating yields subject ids, like
+    meds_reader, so it can stand in for the real database anywhere the
+    graph builders read conditions (trajectory graph, node vectors)."""
+
+    def __init__(self, db, code_map: dict[str, str]):
+        self._db, self._map = db, code_map
+
+    def __iter__(self):
+        return iter(self._db)
+
+    def __getitem__(self, subject_id):
+        from types import SimpleNamespace
+
+        events = [
+            SimpleNamespace(time=e.time, code=self._map.get(e.code, e.code), table=e.table)
+            for e in self._db[subject_id].events
+            if getattr(e, "table", None) == "condition"
+        ]
+        return SimpleNamespace(subject_id=subject_id, events=events)
+
+
+def descendant_concepts(
+    root_codes: Iterable[str],
+    concept_table: pd.DataFrame,
+    relationship_csv_path: Path,
+    chunksize: int = 5_000_000,
+) -> set[str]:
+    """Every concept under the given standard concepts (inclusive), via
+    "Subsumes" (parent -> child) in the shipped concept_relationship.csv.
+    e.g. "SNOMED/59621000" (essential hypertension) includes "SNOMED/1201005"
+    (benign essential hypertension) -- EHRSHOT's task definitions count
+    "a code and its children", so a definition-faithful check must too."""
+    resolved = resolve_codes(pd.Series(sorted(set(root_codes))), concept_table)
+    roots = set(concept_table.merge(resolved[["vocabulary_id", "concept_code"]])["concept_id"])
+    children: dict[int, set[int]] = {}
+    for chunk in pd.read_csv(
+        relationship_csv_path,
+        usecols=["concept_id_1", "concept_id_2", "relationship_id"],
+        dtype={"concept_id_1": "int64", "concept_id_2": "int64", "relationship_id": "string"},
+        chunksize=chunksize,
+    ):
+        sub = chunk[chunk["relationship_id"] == "Subsumes"]
+        for parent, child in zip(sub["concept_id_1"], sub["concept_id_2"], strict=True):
+            children.setdefault(parent, set()).add(child)
+    seen, frontier = set(roots), list(roots)
+    while frontier:
+        for child in children.get(frontier.pop(), ()):
+            if child not in seen:
+                seen.add(child)
+                frontier.append(child)
+    rows = concept_table[concept_table["concept_id"].isin(seen)]
+    return set(rows["vocabulary_id"] + "/" + rows["concept_code"])

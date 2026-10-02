@@ -120,11 +120,21 @@ def build_task_graphs(
 
 
 def load_task_graphs(
-    db, assets: Path, task: str, n_null: int = 10, k: int = 10, table: str = "condition"
+    db,
+    assets: Path,
+    task: str,
+    n_null: int = 10,
+    k: int = 10,
+    table: str = "condition",
+    exclude: set | None = None,
 ) -> TaskGraphs:
     """Reads a task's official labels and CLMBR features from the on-device
     EHRSHOT_ASSETS, builds safe (censored) and leaky (full-history) node
-    vectors, and hands off to `build_task_graphs`."""
+    vectors, and hands off to `build_task_graphs`.
+
+    `db` may be a `vocabulary.MappedConditions` view (SNOMED-harmonized
+    graphs). `exclude`: (patient_id, prediction_time) nodes to drop before
+    anything is built -- e.g. the clean-cohort sensitivity analysis."""
     from ehrgraph.eval.baseline import load_clmbr_features
 
     labels_df = pd.read_csv(
@@ -132,6 +142,10 @@ def load_task_graphs(
     )
     labels_df = labels_df[labels_df["patient_id"].isin(set(db))].reset_index(drop=True)
     nodes = list(zip(labels_df["patient_id"], labels_df["prediction_time"], strict=True))
+    if exclude:
+        keep = [n not in exclude for n in nodes]
+        labels_df = labels_df[keep].reset_index(drop=True)
+        nodes = [n for n, k_ in zip(nodes, keep, strict=True) if k_]
     labels = dict(zip(nodes, labels_df["value"].astype(int), strict=True))
     if len(labels) != len(nodes):
         raise ValueError("duplicate (patient_id, prediction_time) nodes in the labels file")
@@ -381,3 +395,57 @@ def summary_table(rows: list, metrics: list, conditions=("safe", "leaky", "null_
             for m in table.index
         ]
     return table
+
+
+def coding_era(matrix: sp.spmatrix, codes: list) -> np.ndarray:
+    """Per node: "icd9" / "icd10" if its vector holds codes from only one
+    ICD revision, "mixed" if both, "none" if neither. Use RAW-code vectors:
+    after SNOMED harmonization the revision is no longer visible."""
+    present = sp.csr_matrix(matrix) > 0
+    is9 = np.array([c.startswith("ICD9") for c in codes])
+    is10 = np.array([c.startswith("ICD10") for c in codes])
+    n9 = (
+        np.asarray(present[:, is9].sum(axis=1)).ravel() if is9.any() else np.zeros(present.shape[0])
+    )
+    n10 = (
+        np.asarray(present[:, is10].sum(axis=1)).ravel()
+        if is10.any()
+        else np.zeros(present.shape[0])
+    )
+    return np.where(
+        (n9 > 0) & (n10 > 0), "mixed", np.where(n9 > 0, "icd9", np.where(n10 > 0, "icd10", "none"))
+    )
+
+
+def era_stats(
+    graph: nx.Graph, era: dict, labels: dict, n_shuffles: int = 20, seed: int = 0
+) -> dict:
+    """How strongly a graph is split by ICD revision, and how much of its
+    homophily that split could explain. The latter shuffles outcomes
+    *within* each era (keeping every era's outcome rate) and re-measures
+    homophily: what's left is what era alone would produce."""
+    m = graph.number_of_edges()
+    cross = sum(1 for u, v in graph.edges() if {era[u], era[v]} == {"icd9", "icd10"})
+    g = graph.copy()
+    nx.set_node_attributes(g, era, "era")
+    rng = np.random.default_rng(seed)
+    nodes = list(graph.nodes)
+    by_era: dict = {}
+    for n in nodes:
+        by_era.setdefault(era[n], []).append(n)
+    shuffled = []
+    for _ in range(n_shuffles):
+        permuted = {}
+        for members in by_era.values():
+            values = rng.permutation([labels[n] for n in members])
+            permuted.update(zip(members, values, strict=True))
+        shuffled.append(class_insensitive_homophily(graph, permuted)["class_insensitive_homophily"])
+    lo, hi = np.percentile(shuffled, [2.5, 97.5])
+    return {
+        "icd9_icd10_cross_edges": float(cross),
+        "icd9_icd10_cross_edge_fraction": cross / m if m else float("nan"),
+        "era_assortativity": nx.attribute_assortativity_coefficient(g, "era"),
+        "homophily_era_only": float(np.mean(shuffled)),
+        "homophily_era_only_lo": float(lo),
+        "homophily_era_only_hi": float(hi),
+    }

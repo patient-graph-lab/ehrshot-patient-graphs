@@ -1,6 +1,7 @@
 import pandas as pd
 
 from ehrgraph.data.vocabulary import (
+    descendant_concepts,
     load_concept_table,
     parse_meds_code,
     resolve_codes,
@@ -108,3 +109,37 @@ def test_standard_concept_map_sends_icd9_and_icd10_to_one_snomed_concept(tmp_pat
     assert mapping["ICD9CM/401.9"] == "SNOMED/59621000"
     assert mapping["ICD10CM/Z99"] == "ICD10CM/Z99"  # no "Maps to" row: unchanged
     assert mapping["LOCAL/xyz"] == "LOCAL/xyz"  # not in the vocabulary at all: unchanged
+
+
+def test_descendant_concepts_follows_subsumes_transitively(tmp_path):
+    concepts = pd.DataFrame(
+        {
+            "concept_id": [1, 2, 3, 4],
+            "concept_name": [
+                "Essential hypertension",
+                "Benign essential HTN",
+                "Grandchild",
+                "Other",
+            ],
+            "vocabulary_id": ["SNOMED"] * 4,
+            "standard_concept": ["S"] * 4,
+            "concept_code": ["59621000", "1201005", "999", "123"],
+        }
+    ).astype(
+        {
+            "concept_name": "string",
+            "vocabulary_id": "string",
+            "standard_concept": "string",
+            "concept_code": "string",
+        }
+    )
+    rel = tmp_path / "concept_relationship.csv"
+    pd.DataFrame(
+        {
+            "concept_id_1": [1, 2, 2, 4],
+            "concept_id_2": [2, 3, 1, 1],
+            "relationship_id": ["Subsumes", "Subsumes", "Is a", "Is a"],
+        }
+    ).to_csv(rel, index=False)
+    got = descendant_concepts(["SNOMED/59621000"], concepts, rel)
+    assert got == {"SNOMED/59621000", "SNOMED/1201005", "SNOMED/999"}
