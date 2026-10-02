@@ -42,10 +42,11 @@ Patient-identifying columns (`patient_id`, `subject_id`, `person_id`, `omop_pers
 
 | Value | Meaning |
 |---|---|
-| `cond_binary_perpatient_tfidf_mutual_k10` | **Primary.** Raw condition codes, binary presence per node, TF-IDF + cosine, mutual 10-NN |
-| `snomed_binary_perpatient_tfidf_mutual_k10` | Same, with codes mapped to SNOMED standard concepts (removes the ICD-9/ICD-10 era split) |
-| `cond_binary_perpatient_tfidf_mutual_k10_clean_cohort` | Primary, Task B without discharges that already carry an essential-hypertension code |
-| `top200_rr365d_support10_bonferroni_symmax` | Disease-trajectory graph: top 200 codes, relative risk within 365 days, ≥ 10 patients, Bonferroni, symmetrized by max |
+| `omop_concept_binary_perpatient_tfidf_mutual_k10` | **Primary since Oct 2 2026.** Course OMOP tables: standard SNOMED concepts, binary presence per node, TF-IDF + cosine, mutual 10-NN, labels rebuilt from EHRSHOT's definitions |
+| `omop_source_binary_perpatient_tfidf_mutual_k10` | Same, on the original ICD-9/ICD-10 billing codes (keeps the 2015 coding-era split) |
+| `omop_concept_binary_perpatient_tfidf_mutual_k10_official_labels` | Primary graphs with Stanford's official labels (full release needed) |
+| `omop_top200_rr365d_support10_bonferroni_symmax` | Disease-trajectory graph from the course tables: top 200 codes, relative risk within 365 days, ≥ 10 patients, Bonferroni, symmetrized by max |
+| `cond_binary_perpatient_tfidf_mutual_k10`, `snomed_…`, `…_clean_cohort`, `top200_…` | Pre-Oct-2 variants built from the full release's meds_reader database (no longer in the committed files) |
 
 The Project 2 graph-variant sweep adds values in the same pattern (e.g. `..._union_k20`).
 
@@ -62,7 +63,7 @@ Names are `snake_case`, outcome-neutral (`positive`/`negative`, never task-speci
 | Outcome alignment | `edge_homophily`, `class_insensitive_homophily` (Lim et al. 2021; 0 = random), `same_outcome_rate_{positive,negative}`, `dirichlet_energy_clmbr` (centered CLMBR, normalized; lower = smoother) | |
 | Leakage and same-patient (#15) | `same_patient_edge_fraction`, `same_patient_edge_same_outcome_rate`, `class_insensitive_homophily_excl_same_patient`, `max_single_code_outcome_gap`, `edge_jaccard`; per edge set `n_edges`, `same_outcome_rate`, `both_positive_rate`, `same_patient_fraction` | |
 | Coding era (#35) | `icd9_icd10_cross_edges`, `icd9_icd10_cross_edge_fraction`, `era_assortativity`, `homophily_era_only` | |
-| Cohort (#35) | `prevalence`, `prior_coded_{positives,negatives}`, `prior_coded_{positive,negative}_share` | |
+| Cohort and labels (#35, #37) | `prevalence`, `n_labels`, `clmbr_coverage` (share of nodes with a CLMBR fingerprint; 0 without the full release); rebuilt-vs-official: `rebuilt_labels`, `official_labels`, `shared_prediction_times`, `shared_share_of_official`, `outcome_agreement`, `rebuilt_prevalence`, `official_prevalence`, `official_{positives,negatives}_already_diagnosed`, `official_{positive,negative}_share_already_diagnosed` | |
 | Trajectory dendrogram (#14) | `cross_vocabulary_edges`, `gn_levels`, `gn_forced_joins`, `gn_best_n_communities`, `gn_best_modularity`, `louvain_n_communities`, `louvain_modularity`, `ari_gn_best_vs_louvain` | |
 
 ## Files
@@ -72,10 +73,14 @@ Names are `snake_case`, outcome-neutral (`positive`/`negative`, never task-speci
 | `network_stats_task_a.csv` | notebook 07 | Task A, primary variant, all families above |
 | `network_stats_task_b.csv` | notebook 10 | Task B, same |
 | `trajectory_dendrogram.csv` | notebook 08 | Disease-trajectory graph, raw vs SNOMED |
-| `robustness_checks.csv` | notebook 11 | Coding era, SNOMED-harmonized patient graphs, clean Task B cohort |
+| `robustness_checks.csv` | notebook 11 | Rebuilt vs official labels, coding era, billing-code graphs, official-label graphs |
 | `figures/NN_*.png` | notebook NN | Figures built only from the above or from anonymous layouts |
 
-## Changes before the freeze
+## Changes
+
+- **Oct 2 2026 (#37), no schema change:** primary results now come from the course OMOP tables (new `graph_variant` values above). New metrics `n_labels`, `clmbr_coverage` and the label-comparison family. `dirichlet_energy_clmbr` is absent when the full release isn't available.
+
+### Before the freeze
 
 - `same_outcome_rate_long_stay` / `_not_long_stay` → `same_outcome_rate_positive` / `_negative`, and `long_stay_prevalence` → `prevalence` (#33).
 - Trajectory `largest_component_size` → `largest_cc_size`, to match the patient graphs (#18).

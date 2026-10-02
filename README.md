@@ -12,13 +12,18 @@ This is the working repo for a semester research project (CIS 4930 / CAI 5155, N
 
 ## Data access — read this first
 
-This repository contains **no patient data, ever** — not raw, not aggregated-but-still-per-patient, nothing. EHRSHOT is distributed by Stanford under a Data Use Agreement. Full details, including how to get your own access, are in [`DATA_ACCESS.md`](DATA_ACCESS.md). Short version: get your own DUA-approved copy, then:
+This repository contains **no patient data, ever** — not raw, not aggregated-but-still-per-patient, nothing. EHRSHOT is distributed by Stanford under a Data Use Agreement. Full details, including how to get your own access, are in [`DATA_ACCESS.md`](DATA_ACCESS.md).
+
+**Just want to see the results?** Open [`notebooks/executed/`](notebooks/executed/). It holds every results notebook with its outputs, privacy-checked, readable on GitHub with no data and no compute.
+
+**Want to run them?** You need the course's OMOP tables (everyone on the team has them). Stanford's full release is optional: it only adds the CLMBR-based measures, and Project 2 will need it.
 
 ```bash
-export EHRSHOT_DATA_ROOT=/path/to/your/local/copy
+export EHRSHOT_TRIMMED_ROOT=/path/to/the/course/omop/tables   # person.csv, visit_occurrence.csv, ...
+export EHRSHOT_DATA_ROOT=/path/to/your/full/release           # optional: holds EHRSHOT_ASSETS/
 ```
 
-Every script reads from that environment variable — never a relative path from this repo. That's the whole rule, and it's the one thing in this project that isn't negotiable.
+Every script reads from those environment variables, never a relative path into this repo. Each person needs their own approved copy of whatever they use; CLMBR fingerprints and label files are never shared between teammates. That rule isn't negotiable.
 
 ## Can the public site + paper really be safe if the data never leaves your laptop?
 
