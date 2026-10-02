@@ -1,131 +1,114 @@
-# Leakage-Safe Patient Graphs for Few-Shot Clinical Prediction
+# Patient Graphs: does knowing "similar patients" help an AI predict health outcomes?
 
 ![CI](https://github.com/patient-graph-lab/ehrshot-patient-graphs/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
-![Data](https://img.shields.io/badge/data-DUA%20required-critical)
 
-This is the working repo for a semester research project (CIS 4930 / CAI 5155, Network Analysis and Machine Learning with Graphs, University of South Florida, Fall 2026), aimed at a real publication afterward.
+A student research project from the University of South Florida (CIS 4930 / CAI 5155, *Network Analysis and Machine Learning with Graphs*, Fall 2026). Welcome, and thanks for stopping by. You don't need a background in medicine or machine learning to follow along.
 
-**The question:** does a leakage-safe patient-similarity graph genuinely improve a pretrained clinical foundation model's (CLMBR) few-shot predictions on EHRSHOT, and does the size of that improvement track graph homophily — or does it only show up when the graph is allowed to see the future?
+## The idea in one minute
 
-*(This line gets replaced with the actual finding once we have one.)*
+Hospitals would love to predict things like *"will this patient need a long stay?"* or *"will this patient develop high blood pressure in the next year?"*. The hard part is that there are often only a handful of past examples to learn from.
 
-## Data access — read this first
+Our idea is the same trick a movie app uses: **if people similar to you liked a film, you probably will too.** We connect each patient to the patients with the most similar medical histories, forming a network, and ask whether those neighbors help an AI model make better predictions.
 
-This repository contains **no patient data, ever** — not raw, not aggregated-but-still-per-patient, nothing. EHRSHOT is distributed by Stanford under a Data Use Agreement. Full details, including how to get your own access, are in [`DATA_ACCESS.md`](DATA_ACCESS.md).
+There's a catch, and it's what this project is really about. If a link between two patients was built using information from **after** the moment we're predicting, the model looks smarter than it is: it's peeking at the answer key. So we build every network three ways and compare them:
 
-**Just want to see the results?** Open [`notebooks/executed/`](notebooks/executed/). It holds every results notebook with its outputs, privacy-checked, readable on GitHub with no data and no compute.
+| Network | Built from | Why we build it |
+|---|---|---|
+| 🟦 **Honest** | Only what was known *at the time* | The version you could really use |
+| 🟧 **Cheating** | The patient's *whole* record, future included | To measure how much peeking inflates results |
+| 🟩 **Random** | The honest network, shuffled | To see what "no real pattern" looks like |
 
-**Want to run them?** You need the course's OMOP tables (everyone on the team has them). Stanford's full release is optional: it only adds the CLMBR-based measures, and Project 2 will need it.
+## What we've found so far
 
-```bash
-export EHRSHOT_TRIMMED_ROOT=/path/to/the/course/omop/tables   # person.csv, visit_occurrence.csv, ...
-export EHRSHOT_DATA_ROOT=/path/to/your/full/release           # optional: holds EHRSHOT_ASSETS/
-```
+- **Similar patients really do tend to share outcomes,** far more than chance in every version we tested.
+- **Whether cheating helps depends on the question.** For *long hospital stays*, peeking at the future barely changes the network. For *new high blood pressure*, the future record literally contains the diagnosis, and the cheating network looks noticeably better. That's exactly the trap we set out to measure.
+- **Network analysis caught hidden quirks in the data,** including a split caused by the 2015 change in medical billing codes, before any AI model was trained.
 
-Every script reads from those environment variables, never a relative path into this repo. Each person needs their own approved copy of whatever they use; CLMBR fingerprints and label files are never shared between teammates. That rule isn't negotiable.
+Project 1 (network analysis) is due Oct 23, 2026. Project 2, which tests whether the honest networks actually improve predictions, is due Dec 4, 2026.
 
-## Can the public site + paper really be safe if the data never leaves your laptop?
+## Have a look around (no setup needed)
 
-Yes, and here's the actual mechanism, not just a promise:
+| I want to... | Go here |
+|---|---|
+| See the results, with every table and figure | [`notebooks/executed/`](notebooks/executed/): GitHub shows them directly |
+| Just look at the charts | [`results/aggregate/figures/`](results/aggregate/figures/) |
+| Read the summary numbers | [`results/aggregate/`](results/aggregate/) (one small CSV per analysis) |
+| Follow what we did, step by step | [`docs/progress-log.md`](docs/progress-log.md) |
+| Understand the data rules | [`DATA_ACCESS.md`](DATA_ACCESS.md) |
 
-1. **`results/aggregate/`** is the *only* thing anything public ever reads — not the raw data, not `EHRSHOT_DATA_ROOT`, nothing else. It holds summary statistics and metrics (AUROC tables, homophily numbers, degree distributions) with no patient-level rows in it.
-2. **`results/per_patient/`** is gitignored completely — anything with one row per patient stays local, always, and CI fails the build if it's ever staged.
-3. The eventual Quarto site's pages will only ever import from `results/aggregate/*.csv`. They never touch `EHRSHOT_DATA_ROOT`. That means the site can be rendered in GitHub Actions on a runner that **has no access to the data at all** — if a page ever tried to read patient-level data, the build would simply fail, because the data isn't there to read. That's a structural guarantee, not a policy someone has to remember to follow.
-4. One more thing worth knowing, since it's counter-intuitive: **GitHub Pages sites are public even when the source repository is private.** Repo privacy protects the code and the process; it does not protect anything you publish to Pages. So the safety of the public paper/site comes entirely from point 1–3 above, not from the repo being private. Keeping the repo private for now is about giving us room to fix a mistake before it's ever been cloned — it isn't what makes the published site safe.
+<details>
+<summary><b>A few words you'll see around the repo</b></summary>
 
-One extra thing worth doing once we're stratifying by sex/ethnicity, since it can matter even for aggregate numbers: don't publish a subgroup cell smaller than ~10–20 patients. A tiny cell (e.g. "3 patients, 2 positive") is technically aggregate but can still be identifying in a small cohort. Worth a quick manual check before any table with a demographic breakdown goes on the site.
+- **EHRSHOT**: a public research dataset from Stanford with the anonymized medical records of about 6,700 patients.
+- **CLMBR**: an AI model Stanford trained on millions of other patients. It turns each patient's history into a list of 768 numbers, a sort of "fingerprint".
+- **Few-shot**: learning from very few examples (as few as 1 to 128).
+- **Homophily**: how much connected patients share the same outcome. 0 means no more than chance.
+- **Leakage**: future information sneaking into a prediction, i.e. the "peeking" above.
+- **OMOP tables**: the standard spreadsheet-like format the medical records come in.
 
-## Repo layout
+</details>
 
-```
-.
-├── .github/
-│   └── workflows/
-│       ├── ci.yml             lint + smoke test on every push/PR
-│       └── data-guard.yml     fails the PR if anything data-shaped got added
-├── .github/PULL_REQUEST_TEMPLATE.md   the data-safety checklist every PR sees
-├── src/ehrgraph/              the installable package — this is where the real code goes
-│   ├── data/                  meds_reader wrappers, label + split loaders
-│   ├── graphs/                vectorization, similarity, sparsify, the 3 graph conditions
-│   ├── netstats/               centrality, communities, homophily, Dirichlet energy
-│   ├── models/                lr, mlp, propagation, gcn, gat, sage
-│   ├── eval/                  few-shot harness, metrics, bootstrap
-│   └── viz/                   figure functions (aggregate inputs only)
-├── tests/
-│   └── test_smoke.py          confirms the package imports; real tests land as graphs/censoring get built
-├── scripts/
-│   ├── local_setup.py         current default — extracts from ~/ehrshot-data/, sets EHRSHOT_DATA_ROOT
-│   ├── colab_setup.py         Colab path -- kept tested, NOT in use (data stays on-device, see DATA_ACCESS.md)
-│   └── dismantle_data.py      splits EHRSHOT_ASSETS.zip for the Colab upload path -- NOT in use
-├── notebooks/                 Project 1 computation happens here — see notebooks/README.md
-├── r-viz/                     R + ggplot2, final report figures only — reads results/aggregate/ exclusively
-├── data/
-│   ├── README.md              committed — points to DATA_ACCESS.md
-│   └── checksums.txt          committed — sha256 of the expected dataset files, so two people can confirm
-│                               they have the same version without transmitting the data
-├── results/
-│   ├── aggregate/             committed — metrics/figures only, the sole input to the public site and r-viz/
-│   └── per_patient/           gitignored — never committed, ever
-├── .gitignore  .pre-commit-config.yaml  .vscode/
-├── LICENSE  DATA_ACCESS.md  CITATION.cff
-├── pyproject.toml  uv.lock  Makefile
-```
+## Run it yourself
 
-**Not here yet, on purpose:** `configs/`, `site/`, `docs/adr/`. Each one gets created with a single command the moment there's an actual file to put in it — `site/` when the Quarto build actually begins. An empty folder that exists only to look organized isn't worth the confusion of browsing past it with nothing in it.
+You'll need access to the data first; the next section explains how. Then:
 
-## Computation happens locally — and the data never leaves the device
-
-Project 1 runs entirely on your own machine now. The original plan routed everything through Colab specifically because of an assumption ("not enough local compute") that turned out to be wrong — a normal laptop (confirmed: 8 threads, 32GB RAM) handles this comfortably; the largest graphs here have ~7,000 nodes (one per admission, not per patient).
-
-**Setup, one time:**
-
-```mermaid
-flowchart TD
-    A["git clone this repo"] --> B["uv sync --extra dev --extra data"]
-    B --> C["Download EHRSHOT_ASSETS.zip<br/>(+ the other 3 archives if you<br/>want direct meds_reader access)<br/>to ~/ehrshot-data/"]
-    C --> D["from scripts.local_setup<br/>import ensure_local_data<br/>data_root = ensure_local_data()"]
-    D --> E["Extracts what's needed,<br/>sets EHRSHOT_DATA_ROOT"]
-    E --> F["Open notebooks/*.ipynb<br/>in VS Code or jupyter notebook"]
-
-    style A fill:#1a1a2e,stroke:#e94560,color:#fff
-    style E fill:#1a1a2e,stroke:#0f9b8e,color:#fff
-    style F fill:#1a1a2e,stroke:#0f9b8e,color:#fff
-```
-
-Every notebook's first cell calls `ensure_local_data()` (`scripts/local_setup.py`) — no Drive, no upload widget, no waiting. `meds_reader` itself installs and runs cleanly on Linux/macOS (confirmed Sep 20) — if it ever doesn't on your setup, that's the one thing worth flagging early.
-
-**The dataset stays on this device, full stop (team decision, Sep 25).** No Colab upload, no Drive, no Redivis export. GitHub gets code, stripped notebooks, and `results/aggregate/` (summary CSVs + figures built from them) — nothing else. `scripts/colab_setup.py` and `scripts/dismantle_data.py` are still in the repo and still tested in case that decision is ever revisited (issue #23 tracks Redivis, the only cloud option Stanford recommended), but they are not to be used for now. Full rules: [`DATA_ACCESS.md`](DATA_ACCESS.md).
-
-## Install
+**1. Install** (takes a few minutes; uses [uv](https://docs.astral.sh/uv/)):
 
 ```bash
 git clone https://github.com/patient-graph-lab/ehrshot-patient-graphs.git
 cd ehrshot-patient-graphs
-uv sync --extra dev --extra data      # installs everything, including meds_reader + jupyter
-uv run pre-commit install
-uv run python -m ipykernel install --user --name ehrshot-patient-graphs
+uv sync --extra dev
+uv run pre-commit install        # safety checks that run before each commit
 ```
 
-Then, in any notebook, the first cell is always:
+**2. Tell the code where your data is:**
 
-```python
-from scripts.local_setup import ensure_local_data
-data_root = ensure_local_data()   # extracts from ~/ehrshot-data/, sets EHRSHOT_DATA_ROOT
+```bash
+export EHRSHOT_TRIMMED_ROOT=/path/to/the/course/omop/tables   # required: the folder with person.csv, visit_occurrence.csv, ...
+export EHRSHOT_DATA_ROOT=/path/to/your/full/ehrshot/release   # optional: adds the CLMBR-based measures
 ```
 
-VS Code: open the repo folder, install the recommended extensions when prompted (Python, Jupyter, R — already listed in `.vscode/extensions.json`), select the `.venv` interpreter, and notebooks just work. For the R visualization step, see `r-viz/README.md`.
+**3. Open a notebook** in VS Code or Jupyter (`uv run jupyter lab`) and run it top to bottom. Start with **07** (long hospital stays) or **10** (high blood pressure). [`notebooks/README.md`](notebooks/README.md) explains what each one does and which data it needs.
 
-## Working on this repo
+**4. Check everything works** any time with `uv run pytest`. The tests use made-up data, so they run without the real dataset.
 
-- Short-lived branches off `main`, merged via PR, squash-merged. `pre-commit install` runs `ruff` and a data-file guard locally before anything reaches GitHub — that's the check that actually protects the repo; CI's `data-guard` is the backstop, not the first line.
-- If you touch graph construction, time-censoring, or splits: add a test, and say in the PR whether it invalidates any results generated earlier. That one sentence has saved more than one research project from citing a number a later bug quietly broke.
-- Tag submission commits (`project1-submission`, `project2-submission`) at the exact commit whose output got submitted — free, and it's the difference between "let me check" and "let me re-derive this" if a figure looks off in December.
+Everything runs on an ordinary laptop. Most notebooks finish in 1 to 4 minutes; the robustness checks (notebook 11) take about 10.
 
-## How to cite
+## About the data (please read)
 
-See [`CITATION.cff`](CITATION.cff).
+The medical records come from Stanford under a data-use agreement, so **this repository contains no patient data at all**: only code, summary numbers, and charts. A few simple rules keep it that way:
 
-## License and data terms
+- **Each person gets their own access** through Stanford's Redivis platform. Please never send data files to a teammate, even within the project.
+- **The data stays on your own computer:** no Google Drive, Colab, or other cloud uploads.
+- **Only summaries get committed.** Notebooks are saved without their outputs; finished copies with outputs go in `notebooks/executed/` only after a privacy check (`scripts/publish_executed.py`). Automatic checks run before every commit and on every pull request.
 
-Code is Apache-2.0 ([`LICENSE`](LICENSE)). That covers code only — [`DATA_ACCESS.md`](DATA_ACCESS.md) has the data terms, which are separate and non-negotiable regardless of what the code license says.
+**Which data do you need?** Everyone on the course has the course's **OMOP tables**, and that's enough to run everything in Project 1. Stanford's **full release** adds one measure based on CLMBR fingerprints here, and it will be needed for Project 2. [`DATA_ACCESS.md`](DATA_ACCESS.md) has the details and how to request access.
+
+## How the repo is organized
+
+```
+src/ehrgraph/       the project's Python code
+  data/             reading the medical records and building outcome labels
+  graphs/           turning patients into networks (honest, cheating, random)
+  netstats/         measuring the networks: groups, central patients, homophily
+  eval/             baseline checks, label helpers, and safety checks for anything we publish
+  viz/              the charts
+notebooks/          one notebook per analysis step (07-11 are the main results)
+  executed/         the same notebooks with all outputs, ready to read
+results/aggregate/  summary numbers (CSV) and figures; the only results we publish
+tests/              automated tests, all on made-up data
+docs/               the progress log and the results file format
+scripts/            setup and publishing helpers
+r-viz/              optional R scripts for report figures
+```
+
+## Working on the project
+
+- Make a short-lived branch, open a pull request, and let the checks run.
+- If you change how networks, time cut-offs, or labels are built, add a test and say in the pull request whether earlier results change.
+- Questions are welcome. Open an issue or ask the team.
+
+## Citing and license
+
+To cite this work, see [`CITATION.cff`](CITATION.cff). The code is open source under the [Apache-2.0 license](LICENSE). The data is not: it stays under Stanford's terms (see [`DATA_ACCESS.md`](DATA_ACCESS.md)).
