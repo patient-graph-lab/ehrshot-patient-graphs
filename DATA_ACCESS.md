@@ -49,3 +49,14 @@ Point the code at your copies with `EHRSHOT_TRIMMED_ROOT` (course tables; defaul
 - Nothing under `data/` other than `README.md` and `checksums.txt` may be tracked by git, ever.
 
 Questions about access or terms: ask the team's Infra Lead before proceeding, not after.
+
+## How a public site or paper stays safe when the data never leaves your laptop
+
+This is the actual mechanism, not just a promise:
+
+1. **`results/aggregate/` is the only thing anything public reads.** It holds summary statistics (AUROC tables, homophily numbers, degree distributions) and never one row per patient. `write_aggregate` refuses patient-identifying columns, and `tests/test_results_schema.py` re-checks every committed file.
+2. **`results/per_patient/` is gitignored completely.** Anything with one row per patient stays local, and CI fails the build if it is ever staged.
+3. **The eventual project site will read only `results/aggregate/*.csv`.** It can be built in GitHub Actions on a machine that has no access to the data at all. If a page ever tried to read patient-level data, the build would fail because the data isn't there.
+4. **GitHub Pages sites are public even when the repository is private.** Repo privacy protects the code and the process, not anything published to Pages. The site's safety comes from points 1–3. Keeping the repo private for now gives us room to fix a mistake before anything has been cloned.
+
+**Small subgroups:** once results are broken down by sex or ethnicity, don't publish a subgroup cell smaller than about 10–20 patients. A tiny cell (e.g. "3 patients, 2 positive") is technically aggregate but can still identify someone in a small cohort. Check any demographic table by hand before it goes public.
