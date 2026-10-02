@@ -53,9 +53,9 @@ git push
 | 05 | `leakage_conditions` | #6, #7, #8 | trimmed tables (content) + full dataset (`prediction_time` for censoring) |
 | — | *(no notebook — `tests/test_censoring.py`)* | #9 | synthetic fixture only |
 | 06 | `disease_trajectory_graph` | #10 | trimmed OMOP tables (`condition_occurrence` self-join) |
-| 07 | `network_stats_task_a` | #11, #12, #13 | graphs from 04/05 |
+| 07 | `network_stats_task_a` | #11, #12, #13, #15 | full dataset, via `ehrgraph.netstats.task_analysis` |
 | 08 | `girvan_newman_dendrogram` | #14 | graph from 06 |
-| 09 | `comparison_task_a` | #15, #18 | results from 07; **freezes the `results/aggregate/` schema here** |
-| 10 | `task_b_full_analysis` | #16, #17 | repeats 03–09 for Hypertension |
+| 09 | `cross_task_comparison` | #17 | **aggregate CSVs only** -- needs no patient data |
+| 10 | `network_stats_task_b` | #16, #15 | full dataset, same library code as 07 |
 
-Once 09/10 have written real output to `results/aggregate/`, `r-viz/figures.R` takes over for the final report figures (`r-viz/README.md`).
+Once 07/10 have written real output to `results/aggregate/`, `r-viz/figures.R` takes over for the final report figures (`r-viz/README.md`).
