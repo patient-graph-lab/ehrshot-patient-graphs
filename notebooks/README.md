@@ -27,16 +27,16 @@ That's it — after this cell, `from ehrgraph.graphs import ...` works, and `EHR
 
 **Why the `sys.path` walk-up instead of a bare `from scripts.local_setup import ...`:** `scripts/` isn't an installed package the way `ehrgraph` is (via `uv sync`), so it's only importable if the repo root is on `sys.path`. The walk-up finds that root regardless of whether Jupyter launched from `notebooks/`, the repo root, or VS Code's own default working directory — don't simplify this to an `os.chdir()` instead, since that would break any cell using a path relative to wherever the notebook file itself lives.
 
-## Colab fallback (not the default — see README.md)
+## No Colab, no uploads — data stays on this device
 
-If local compute is ever genuinely insufficient, `scripts/colab_setup.py` still works, still has real tests (`tests/test_colab_setup.py`), and the git history has the full Colab bootstrap cell (branch-aware clone, `GH_PAT` token, the editable-install `sys.path` fix) if it's ever needed again. Not documented here in full since it's not the primary path.
+Per `DATA_ACCESS.md` (team decision, Sep 25), notebooks run locally only. `scripts/colab_setup.py` still exists and is still tested, but it is not to be used while the device-only rule stands. Outputs are stripped by `nbstripout` before every commit (pre-commit + CI both enforce it) — printed cells can contain patient IDs, so the *only* results that reach GitHub are the files a notebook deliberately writes to `results/aggregate/`.
 
 ## Saving results back
 
-Any output that should be kept writes to `results/aggregate/` (never `results/per_patient/`), following the frozen schema (issue #18: `task, condition, graph_variant, metric, value, ci_low, ci_high, seed`), then a normal commit:
+Any output that should be kept writes to `results/aggregate/` (never `results/per_patient/`) via `ehrgraph.eval.aggregate.write_aggregate`, which enforces the long-format schema (`task, condition, graph_variant, metric, value, ci_low, ci_high, seed` — frozen for good in issue #18) and refuses patient-identifying columns. Figures go to `results/aggregate/figures/`, built only from those summaries. Then a normal commit:
 
 ```bash
-git add results/aggregate/*.csv
+git add results/aggregate/
 git commit -m "..."
 git push
 ```

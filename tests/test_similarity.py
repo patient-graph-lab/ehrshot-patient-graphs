@@ -4,6 +4,7 @@ import pytest
 import scipy.sparse as sp
 
 from ehrgraph.graphs.similarity import (
+    build_similarity_graph,
     cosine_similarity_matrix,
     graph_summary,
     mutual_knn,
@@ -157,3 +158,32 @@ def test_graph_summary_counts_isolated_and_largest_component():
     assert summary["largest_cc_size"] == 3
     assert summary["largest_cc_fraction"] == pytest.approx(0.6)
     assert summary["n_components"] == 3  # {1,2,3}, {4}, {5}
+
+
+def test_build_similarity_graph_matches_step_by_step_pipeline():
+    # Two tight pairs of patients plus one loner: mutual k=1 should link
+    # each pair and leave the loner isolated, and must equal the
+    # step-by-step pipeline notebook 05 used to inline.
+    matrix = sp.csr_matrix(
+        np.array(
+            [
+                [1, 1, 0, 0, 0],
+                [1, 1, 1, 0, 0],
+                [0, 0, 0, 1, 1],
+                [0, 0, 1, 1, 1],
+                [1, 0, 0, 0, 1],
+            ],
+            dtype=float,
+        )
+    )
+    nodes = ["a", "b", "c", "d", "e"]
+    graph = build_similarity_graph(matrix, nodes, k=1)
+    expected = to_networkx(
+        mutual_knn(top_k_sparsify(cosine_similarity_matrix(to_tfidf(matrix)), k=1)), nodes
+    )
+    assert set(graph.nodes) == set(nodes)
+    assert {frozenset(e) for e in graph.edges()} == {frozenset(e) for e in expected.edges()}
+    assert graph.has_edge("a", "b") and graph.has_edge("c", "d")
+
+    union = build_similarity_graph(matrix, nodes, k=1, mutual=False)
+    assert union.number_of_edges() >= graph.number_of_edges()

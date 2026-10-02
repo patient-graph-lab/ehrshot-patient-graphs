@@ -125,3 +125,19 @@ def graph_summary(graph: nx.Graph) -> dict:
         "largest_cc_size": len(largest_cc),
         "largest_cc_fraction": len(largest_cc) / n_nodes if n_nodes else 0.0,
     }
+
+
+def build_similarity_graph(
+    matrix: sp.spmatrix, node_order: list, k: int = 10, mutual: bool = True
+) -> nx.Graph:
+    """The full vectors -> graph pipeline in one call: TF-IDF, cosine,
+    top-k, then mutual (primary) or union (sensitivity check) k-NN.
+
+    Previously inlined in notebook 05; lifted here so every notebook that
+    needs "the" safe/leaky graph (07's network stats, Task B's repeat)
+    builds it through the exact same, tested code path rather than a
+    copy-pasted cell that could quietly drift.
+    """
+    top_k = top_k_sparsify(cosine_similarity_matrix(to_tfidf(matrix)), k=k)
+    adjacency = mutual_knn(top_k) if mutual else union_knn(top_k)
+    return to_networkx(adjacency, node_order)
