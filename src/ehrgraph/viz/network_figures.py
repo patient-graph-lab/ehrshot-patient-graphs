@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.collections import LineCollection
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from ehrgraph.netstats.centrality import degree_distribution
 from ehrgraph.netstats.task_analysis import TaskAnalysis, TaskGraphs
@@ -27,6 +28,8 @@ COLORS = {"safe": "#2a78d6", "leaky": "#eb6834", "null": "#1baf7a"}
 INK, INK_2, INK_3, GRID = "#0b0b0b", "#52514e", "#8a8983", "#e6e5e0"
 POS, NEG = "#4a3aa7", "#d4d3cc"
 CONDITIONS = ("safe", "leaky", "null")
+#: what the notebooks and report call each graph
+LABELS = {"safe": "honest", "leaky": "cheating", "null": "random"}
 
 
 def apply_style() -> None:
@@ -123,7 +126,7 @@ def community_outcome_figure(tg: TaskGraphs, an: TaskAnalysis, outcome: str, min
             lw=1.5,
             color=COLORS[name],
             ls="--" if name == "null" else "-",
-            label=f"{name}: {len(rates)} groups, η² = {o['eta_squared']:.3f}",
+            label=f"{LABELS[name]}: {len(rates)} groups, η² = {o['eta_squared']:.3f}",
         )
     ax.axhline(tg.prevalence, color=INK_3, lw=1, ls=":")
     ax.text(0.0, tg.prevalence + 0.02, f"overall rate {tg.prevalence:.2f}", color=INK_3, fontsize=9)
@@ -156,7 +159,7 @@ def layout_figure(tg: TaskGraphs, positive: str, negative: str, seed: int = 0):
         y = np.array([tg.labels[n] for n in order])
         ax.scatter(*coords[y == 0].T, s=4, c=NEG, linewidths=0)
         ax.scatter(*coords[y == 1].T, s=6, c=POS, linewidths=0)
-        ax.set_title(f"{name}: largest piece, {len(order):,} nodes")
+        ax.set_title(f"{LABELS[name]}: largest piece, {len(order):,} stays")
         ax.set_aspect("equal")
         ax.axis("off")
     handles = [
@@ -202,7 +205,7 @@ def homophily_energy_figure(an: TaskAnalysis):
             va="center",
             color=INK_2,
         )
-        ax.set_yticks([2, 1, 0], ["safe", "leaky", "null"])
+        ax.set_yticks([2, 1, 0], [LABELS[c] for c in CONDITIONS])
         ax.set_ylim(-0.6, 2.6)
         ax.grid(axis="y", visible=False)
         ax.set_title(title)
@@ -223,8 +226,8 @@ def leakage_edges_figure(tg: TaskGraphs, an: TaskAnalysis):
 
     sets = (
         ("shared_edges", "in both", INK_3),
-        ("safe_only_edges", "safe only", COLORS["safe"]),
-        ("leaky_only_edges", "leaky only", COLORS["leaky"]),
+        ("safe_only_edges", "honest only", COLORS["safe"]),
+        ("leaky_only_edges", "cheating only", COLORS["leaky"]),
     )
     rates = [an.edge_sets[key]["same_outcome_rate"] for key, _, _ in sets]
     bars = ax_e.bar(range(3), rates, color=[c for _, _, c in sets], width=0.6)
@@ -271,12 +274,122 @@ def leakage_edges_figure(tg: TaskGraphs, an: TaskAnalysis):
             va="center",
             color=INK_2,
         )
-    ax_h.set_yticks([2, 1, 0], ["safe", "leaky", "null"])
+    ax_h.set_yticks([2, 1, 0], [LABELS[c] for c in CONDITIONS])
     ax_h.set_ylim(-0.6, 2.6)
     ax_h.grid(axis="y", visible=False)
     ax_h.set_xlabel("class-insensitive homophily")
     ax_h.set_title("Homophily: all links (●) vs. without same-patient links (○)")
     lo, hi = ax_h.get_xlim()
     ax_h.set_xlim(lo, hi + (hi - lo) * 0.35)
+    fig.tight_layout()
+    return fig
+
+
+def sir_figure(curves_by_task: dict):
+    """curves_by_task: {task title: {"safe"|"leaky"|"null": curve array}}."""
+    fig, axes = plt.subplots(
+        1, len(curves_by_task), figsize=(6 * len(curves_by_task), 3.8), squeeze=False, sharey=True
+    )
+    for ax, (title, curves) in zip(axes[0], curves_by_task.items(), strict=True):
+        for name in CONDITIONS:
+            ax.plot(
+                curves[name],
+                color=COLORS[name],
+                lw=2.2,
+                ls="--" if name == "null" else "-",
+                label=LABELS[name],
+            )
+        ax.set_title(title)
+        ax.set_xlabel("time step")
+    axes[0][0].set_ylabel("share of patients ever infected")
+    axes[0][0].legend(loc="lower right")
+    fig.tight_layout()
+    return fig
+
+
+def cascade_figure(reach_by_task: dict):
+    """reach_by_task: {task title: {"safe"|"leaky"|"null": cascade_reach dict}}."""
+    fig, axes = plt.subplots(
+        1, len(reach_by_task), figsize=(6 * len(reach_by_task), 3.8), squeeze=False
+    )
+    for ax, (title, reach) in zip(axes[0], reach_by_task.items(), strict=True):
+        shares = [reach[n]["cascade_positive_share"] for n in CONDITIONS]
+        bars = ax.bar(
+            [LABELS[n] for n in CONDITIONS],
+            shares,
+            color=[COLORS[n] for n in CONDITIONS],
+            width=0.6,
+        )
+        for bar, n in zip(bars, CONDITIONS, strict=True):
+            ax.annotate(
+                f"{bar.get_height():.0%}\n({reach[n]['cascade_reached']:.0f} reached)",
+                (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                color=INK_2,
+                fontsize=9,
+            )
+        base = reach["safe"]["base_rate"]
+        ax.axhline(base, color=INK_3, ls=":", lw=1)
+        ax.text(2.45, base, f" base rate\n {base:.0%}", va="center", color=INK_3, fontsize=9)
+        ax.set_ylim(0, max(shares) * 1.35)
+        ax.set_title(title)
+        ax.grid(axis="x", visible=False)
+    axes[0][0].set_ylabel("share of reached patients\nwho have the outcome")
+    fig.tight_layout()
+    return fig
+
+
+def era_by_year_figure(counts):
+    """counts: DataFrame with columns year, ICD9CM, ICD10CM (diagnosis rows per year)."""
+    fig, ax = plt.subplots(figsize=(9, 3.6))
+    ax.bar(counts["year"], counts["ICD9CM"], color=COLORS["safe"], label="ICD-9 codes", width=0.8)
+    ax.bar(
+        counts["year"],
+        counts["ICD10CM"],
+        bottom=counts["ICD9CM"],
+        color=COLORS["leaky"],
+        label="ICD-10 codes",
+        width=0.8,
+    )
+    ax.axvline(2015.75, color=INK_3, ls=":", lw=1)
+    ax.text(2015.85, ax.get_ylim()[1] * 0.92, "Oct 2015 switch", color=INK_2, fontsize=9)
+    ax.set_ylabel("diagnosis records")
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.set_title("Hospitals switched billing-code systems in 2015")
+    ax.grid(axis="x", visible=False)
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    return fig
+
+
+def cross_task_figure(values: dict):
+    """values: {metric title: {task title: (safe, leaky, null)}} -> one dot panel per metric."""
+    fig, axes = plt.subplots(1, len(values), figsize=(5.2 * len(values), 3.8), squeeze=False)
+    for ax, (metric, by_task) in zip(axes[0], values.items(), strict=True):
+        for x, triple in enumerate(by_task.values()):
+            for dx, name, v in zip((-0.15, 0.0, 0.15), CONDITIONS, triple, strict=True):
+                if v != v:  # NaN: not measured for this graph -- leave it out, don't fake a zero
+                    continue
+                ax.plot(
+                    x + dx, v, "o", ms=9, color=COLORS[name], label=LABELS[name] if x == 0 else None
+                )
+                ax.annotate(
+                    f"{v:.2f}",
+                    (x + dx, v),
+                    xytext=(0, 7),
+                    textcoords="offset points",
+                    ha="center",
+                    fontsize=8,
+                    color=INK_2,
+                )
+        ax.set_xticks(range(len(by_task)), list(by_task))
+        ax.set_xlim(-0.5, len(by_task) - 0.5)
+        ax.grid(axis="x", visible=False)
+        ax.set_title(metric, fontsize=11)
+    axes[0][0].legend(loc="best", fontsize=8)
     fig.tight_layout()
     return fig

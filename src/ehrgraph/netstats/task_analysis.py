@@ -510,3 +510,19 @@ def era_stats(
         "homophily_era_only_lo": float(lo),
         "homophily_era_only_hi": float(hi),
     }
+
+
+FRIENDLY_COLUMNS = {
+    "safe": "honest",
+    "leaky": "cheating",
+    "null_model": "random (avg of 10)",
+    "null 95% range": "random range",
+}
+
+
+def friendly_table(rows: list, names: dict, conditions=("safe", "leaky", "null_model")):
+    """`summary_table` with plain-English row names (`names`: metric -> label)
+    and column names, rounded for reading."""
+    table = summary_table(rows, list(names), conditions=conditions)
+    table = table.rename(index=names, columns=FRIENDLY_COLUMNS)
+    return table.apply(lambda col: col.map(lambda v: round(v, 3) if isinstance(v, float) else v))

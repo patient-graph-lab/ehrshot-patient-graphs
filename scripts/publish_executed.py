@@ -32,26 +32,13 @@ EXECUTED = REPO / "notebooks" / "executed"
 
 def sensitive_tokens() -> set[str]:
     """Every real patient id and prediction time on this machine."""
-    import pandas as pd
+    from ehrgraph.project import setup
 
-    from ehrgraph.data.omop import OmopTables
-    from ehrgraph.data.omop_labels import rebuild_task_labels
-    from scripts.local_setup import ensure_data_sources
-
-    sources = ensure_data_sources()
-    tables = OmopTables(sources.trimmed)
-    tokens = {str(p) for p in tables.person["person_id"]}
+    p = setup()
+    tokens = {str(pid) for pid in p.tables.person["person_id"]}
     for task in ("guo_los", "new_hypertension"):
-        frames = [rebuild_task_labels(tables, task)]
-        if sources.has_full_release:
-            frames.append(
-                pd.read_csv(
-                    sources.assets / "benchmark" / task / "labeled_patients.csv",
-                    parse_dates=["prediction_time"],
-                )
-            )
-        for df in frames:
-            tokens |= {t.strftime("%Y-%m-%d %H:%M") for t in df["prediction_time"]}
+        labels = p.labels(task)
+        tokens |= {t.strftime("%Y-%m-%d %H:%M") for t in labels["prediction_time"]}
     return tokens
 
 
