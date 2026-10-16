@@ -125,7 +125,7 @@ def plot_dendrogram(
             color = by_text.get(tick.get_text())
             if color and color != OTHER:
                 tick.set_fontweight("bold")
-    axis_label = "Girvan–Newman step (higher = split earlier)"
+    axis_label = "split order (higher = split earlier)"
     if orientation in ("left", "right"):
         ax.set_xlabel(axis_label, color=INK_2)
     else:
