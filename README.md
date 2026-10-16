@@ -2,7 +2,7 @@
 
 Patient similarity networks and information leakage in EHRSHOT.
 
-Sanjay Malla, Quade Leonard, Ean Stedham. CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs, University of South Florida, Fall 2026.
+Sanjay Malla, Quade Leonard, Ean Stedham.
 
 ![CI](https://github.com/patient-graph-lab/ehrshot-patient-graphs/actions/workflows/ci.yml/badge.svg?branch=trimmed-dataset)
 
