@@ -17,7 +17,9 @@
 #
 # Flags:
 #   --docker   after setup, run `make docker-check` (all notebooks in a clean
-#              container, about 10 minutes, compares results with the repo)
+#              container, about 10 minutes, compares results with the repo).
+#              Uses Docker, or Podman if Docker isn't installed; set
+#              DOCKER=podman to choose explicitly.
 #   --report   after setup, build report/main.pdf (needs pdflatex + bibtex)
 #
 # Safe to run more than once: every step skips work that is already done.
@@ -56,7 +58,18 @@ if [[ -n "$ZIP" ]]; then
     command -v unzip >/dev/null || fail "unzip is not installed (e.g. 'sudo dnf install unzip' or 'sudo apt install unzip')."
 fi
 if $RUN_DOCKER; then
-    command -v docker >/dev/null || fail "--docker was given but Docker is not installed (https://docs.docker.com/get-docker/)."
+    # Use $DOCKER if set (e.g. DOCKER=podman), otherwise Docker, otherwise Podman.
+    ENGINE="${DOCKER:-}"
+    if [[ -z "$ENGINE" ]]; then
+        if command -v docker >/dev/null; then ENGINE=docker
+        elif command -v podman >/dev/null; then ENGINE=podman
+        else fail "--docker was given but neither Docker nor Podman is installed (https://docs.docker.com/get-docker/)."
+        fi
+    fi
+    # `info` fails if the daemon isn't running or you lack permission to use it.
+    "$ENGINE" info >/dev/null 2>&1 \
+        || fail "$ENGINE is installed but not usable. Start it (e.g. 'sudo systemctl start docker') or add yourself to the docker group, then try again."
+    echo "container engine: $ENGINE"
 fi
 if $BUILD_REPORT; then
     command -v pdflatex >/dev/null || fail "--report was given but pdflatex is not installed (install TeX Live, or use Overleaf: make overleaf)."
@@ -111,7 +124,7 @@ if $RUN_DOCKER; then
     # Builds a clean image (no data inside), mounts the data read-only, runs
     # with no network, executes notebooks 01-06, and compares the results.
     step "Running the full Docker check (about 10 minutes)"
-    make docker-check
+    make docker-check DOCKER="$ENGINE"
 fi
 
 if $BUILD_REPORT; then
