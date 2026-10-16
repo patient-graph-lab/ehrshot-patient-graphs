@@ -14,140 +14,116 @@
 A Network Analysis of Patient Similarity and Information Leakage in EHRSHOT}
 \author{Sanjay Malla \and Quade Leonard \and Ean Stedham}
 \date{CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs\\
-University of South Florida, Fall 2026 --- Project 1\\[4pt]
+University of South Florida, Fall 2026\\[4pt]
 October 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We represent electronic health records (EHRs) from Stanford's EHRSHOT dataset as networks and study them with classical social network analysis, without machine learning. Each node is one hospital stay, and two stays are linked when their diagnosis histories are very similar. We ask two clinical questions: will the stay last a week or more, and will the patient be newly diagnosed with high blood pressure within a year? For each question we compare an \emph{honest} network, built only from diagnoses known before the prediction time, with a \emph{cheating} network that also sees the future, and a \emph{random} network with the same number of links per node. Honest networks are highly clustered, split into strong communities, and linked stays share outcomes far more than chance (homophily 0.21 and 0.23, against about 0.01 at random). Seeing the future barely changes the long-stay network, but clearly changes the blood-pressure network, because the future record contains the very diagnosis we want to predict. A separate disease-trajectory network recovers recognisable families of conditions such as heart failure and sepsis. Network analysis also exposed hidden data artifacts, such as a split between old and new billing codes, before any model was trained.
+We represent hospital records from Stanford's EHRSHOT dataset as networks in which each node is a hospital stay and two stays are connected when the patients' diagnosis histories are very similar. Using standard network measures, we ask whether connected stays share outcomes for two questions: will the stay last a week or more, and will the patient be newly diagnosed with high blood pressure within a year? We compare an \emph{honest} network, built only from diagnoses recorded before the moment of prediction, with a \emph{cheating} network that also uses later diagnoses, and with a randomly rewired network. Honest networks consist of many tight groups, and connected stays share outcomes far more often than chance. Adding future diagnoses barely changes this for hospital stays, but clearly strengthens it for high blood pressure, because the later record contains the very diagnosis being predicted. A second network, linking diagnoses that tend to follow one another, recovers recognisable families of conditions such as heart failure and sepsis.
 \end{abstract}
 
 \section{Introduction}
 
-Hospitals record every diagnosis, visit, and procedure in an electronic health record (EHR). A natural way to study such records is as a \emph{network} (also called a graph): a set of \emph{nodes} connected by \emph{links} (edges). In this project a node is a hospital stay, and a link means two stays look alike in terms of diagnoses. This is the same idea as a movie recommender that connects people who watched similar films: if your neighbours liked a film, you might too; if similar patients had a long stay, this patient might too.
+Hospitals record every diagnosis a patient receives in an electronic health record (EHR). One natural way to study these records is as a network. In our networks each node is a hospital stay, and an edge connects two stays whose diagnosis histories look alike. The idea is the same as a film recommender that connects people with similar viewing histories: if similar viewers liked a film, you might too, and if similar patients had a long hospital stay, this patient might too.
 
-Our main question is: \emph{are patient networks built from past diagnoses organised around clinical outcomes, and what structure do they reveal?} A second question runs through the whole report: \emph{what happens when the network accidentally uses information from the future?} This problem is called \emph{information leakage}. If we build a network using diagnoses that were recorded after the moment we are trying to predict, the network may look very informative only because it has already seen the answer. Leakage is a common and serious mistake in medical machine learning, because it makes methods look better on paper than they could ever be in a real hospital. Since Project~2 will train graph neural networks on these same networks, we want to understand leakage now, with simple and transparent tools.
+We ask two questions. First, \emph{are networks of similar patients organised around clinical outcomes, and what structure do they have?} Second, \emph{what changes if the network accidentally uses information from the future?} This second problem is called \emph{information leakage}. If a network is built from diagnoses recorded after the moment we are trying to predict, it can look informative only because it has already seen the answer. Leakage is a common and serious mistake in medical machine learning, because it makes methods look better on paper than they could be in a real hospital.
+
+We answer both questions with classical network analysis and no machine learning, so that every result can be traced to a simple, transparent measure.
 
 \section{Data}
 \label{sec:data}
 
-\subsection{EHRSHOT and the OMOP format}
-
-EHRSHOT is a de-identified EHR dataset released by Stanford together with a benchmark of clinical prediction tasks~\cite{wornow2023ehrshot}. We use the course release, which contains 13 tables in the OMOP Common Data Model (OMOP-CDM). OMOP-CDM is a shared database layout maintained by the OHDSI community~\cite{hripcsak2015ohdsi}: every hospital stores patients, visits, diagnoses, drugs, and measurements in the same tables with the same columns, so that analyses can be reused across hospitals. The release covers 6,731 patients, 944,132 visits, and 2,570,607 diagnosis records.
+EHRSHOT is a de-identified EHR dataset released by Stanford together with a set of clinical prediction tasks~\cite{wornow2023ehrshot}. We use the course's trimmed version, stored in the OMOP format, a shared layout for organising visits, diagnoses, and other medical records~\cite{hripcsak2015ohdsi}. It covers 6,731 patients, 944,132 visits, and 2.57 million diagnosis records.
 
 \subsection{Two prediction questions}
 
-We study two of the EHRSHOT benchmark questions. Because the course release does not ship the official labels in a ready-to-use form, we rebuilt them from the written EHRSHOT definitions. A \emph{prediction time} is the moment at which a question is asked; a \emph{label} is the true answer.
-
+We study two EHRSHOT tasks. For each, the \emph{prediction time} is the moment the question is asked, and the \emph{label} is the true answer.
 \begin{itemize}
-  \item \textbf{Long stay.} At 23:59 on the day of admission, will this hospital stay last 7 days or more? There are 6,998 prediction times from 3,844 patients, and 25.4\% are positive (long).
-  \item \textbf{New high blood pressure.} At discharge, will the patient receive a first diagnosis of essential hypertension (SNOMED concept 59621000 or any of its sub-concepts) within 365 days? Discharges of patients who already have the diagnosis are skipped. There are 3,511 prediction times from 2,217 patients, and 12.8\% are positive.
+  \item \textbf{Long stay.} At the end of the admission day, will this hospital stay last 7 days or more?
+  \item \textbf{New high blood pressure.} At discharge, will the patient be diagnosed with essential hypertension for the first time within the next year? Stays of patients who already have the diagnosis are skipped.
 \end{itemize}
+The trimmed data do not include ready-made labels, so we rebuilt them from the EHRSHOT definitions. Where our labels and Stanford's official labels cover the same stays, they agree 99.84\% (long stay) and 99.40\% (high blood pressure) of the time. Table~\ref{tab:labels} summarises both questions.
 
-Our rebuilt labels cover 99.1\% (long stay) and 93.0\% (hypertension) of Stanford's official prediction times, and where both exist the outcome agrees 99.84\% and 99.40\% of the time. Most of the hypertension gap comes from 55 of 516 official positives and 84 of 3,248 official negatives whose patients \emph{already} had the diagnosis before the prediction time. The written EHRSHOT rule says these should be skipped, so we skip them. Table~\ref{tab:labels} summarises the two questions.
-
-\begin{table}[ht]
+\begin{table}[!htbp]
 \centering
-\caption{The two prediction questions after rebuilding labels.}
+\caption{The two prediction questions.}
 \label{tab:labels}
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrr}
 \toprule
-Question & Prediction times & Patients & Positive & Match to official \\
+Question & Hospital stays & Patients & Positive \\
 \midrule
-Long stay ($\geq$ 7 days) & 6,998 & 3,844 & 25.4\% & 99.1\% \\
-New high blood pressure   & 3,511 & 2,217 & 12.8\% & 93.0\% \\
+Long stay ($\geq$ 7 days) & 6,998 & 3,844 & 25.4\% \\
+New high blood pressure   & 3,511 & 2,217 & 12.8\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{One node = one prediction time = one hospital stay.} Every node in our patient networks is a single prediction time, which corresponds to a single hospital stay. A patient with several stays therefore appears as several nodes. This matters later, because two stays of the same person tend to look alike.
+Each node in our patient networks is one hospital stay at its prediction time. A patient with several stays therefore appears as several nodes, which matters later because two stays of the same person tend to look alike.
 
-\subsection{Billing codes and standard concepts}
+\subsection{Two kinds of diagnosis codes}
 
-Diagnoses are recorded as billing codes from the International Classification of Diseases (ICD). In the United States, hospitals switched from ICD-9 to ICD-10 in October 2015 (Figure~\ref{fig:codes}). The same disease therefore has two different codes depending on the year. OMOP maps both versions to a common \emph{standard concept} from the SNOMED clinical vocabulary. We use these SNOMED concepts for all main analyses, so that a patient diagnosed in 2014 and one diagnosed in 2017 can be compared fairly. Section~\ref{sec:robust} shows what goes wrong when raw billing codes are used instead.
+Diagnoses are recorded as billing codes. In October 2015, US hospitals switched from the older ICD-9 billing codes to the newer ICD-10 codes (Figure~\ref{fig:codes}), so the same disease can have a different code depending on the year. The OMOP format also maps both versions to a single \emph{standardised diagnosis code} (from the SNOMED vocabulary). We use the standardised codes for all main analyses, so that a diagnosis made in 2014 and the same diagnosis made in 2017 count as the same thing. Section~\ref{sec:robust} shows what goes wrong otherwise.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.75\textwidth]{01_billing_codes_by_year.png}
-\caption{Diagnosis records per year, split into ICD-9 and ICD-10 billing codes. The switch happens in October 2015.}
+\includegraphics[width=0.7\textwidth]{01_billing_codes_by_year.png}
+\caption{Diagnosis records per year. Hospitals switched from ICD-9 (blue) to ICD-10 (orange) billing codes in October 2015.}
 \label{fig:codes}
 \end{figure}
 
 \section{Methods}
 \label{sec:methods}
 
-\subsection{From stays to vectors}
+\paragraph{Building a network of stays.} For each stay we list which standardised diagnoses appear in the patient's record. We weight each diagnosis so that very common ones (which almost everyone has) count little and rare, specific ones count more; this is the TF-IDF weighting used in text search. Two stays are then compared with cosine similarity, which is 1 for identical diagnosis profiles and 0 for profiles with nothing in common. We connect two stays when each is among the other's 10 most similar stays.
 
-For each stay we build a vector with one entry per SNOMED diagnosis concept. The entry is 1 if the concept appears in the patient's record (within the allowed time window, see below) and 0 otherwise. We then apply \emph{TF-IDF} weighting (term frequency--inverse document frequency), a technique from text search: concepts that almost every patient has receive a small weight, and rare, specific concepts receive a large weight. Similarity between two stays is the \emph{cosine similarity} of their weighted vectors, which is 1 for identical profiles and 0 for profiles with nothing in common.
-
-\subsection{From vectors to a network}
-
-We link two stays if each is among the other's 10 most similar stays. This is called a \emph{mutual 10-nearest-neighbour graph}. The word ``mutual'' prevents very common profiles from collecting thousands of links. Each link carries its cosine similarity as a weight.
-
-\subsection{Three conditions}
-
-For each question we build three networks with the same recipe:
+\paragraph{Honest, cheating, and random networks.} For each question we build three networks with the same recipe:
 \begin{itemize}
-  \item \textbf{Honest:} only diagnoses recorded before the prediction time. This is what a real hospital system could know.
-  \item \textbf{Cheating:} the whole patient record, including diagnoses made after the prediction time. This deliberately creates leakage. On the long-stay question a cheating vector contains about twice as many distinct diagnoses as an honest one (97 against 48 on average).
-  \item \textbf{Random:} the honest network rewired by \emph{degree-preserving edge swaps}. We repeatedly pick two links A--B and C--D and swap them to A--D and C--B. Every node keeps its number of links (its \emph{degree}), but who connects to whom becomes random. Link weights are reshuffled as well. We repeat this with 10 random seeds and report the mean and the 95\% range.
+  \item \textbf{Honest:} only diagnoses recorded before the prediction time, which is all a real hospital could know.
+  \item \textbf{Cheating:} the whole patient record, including diagnoses made after the prediction time. This deliberately introduces leakage. A cheating profile has about twice as many diagnoses as an honest one (97 against 48 on average for long stay).
+  \item \textbf{Random:} the honest network with its connections randomly rearranged, while every stay keeps the same number of connections. We repeat this 10 times and report the average.
 \end{itemize}
-The random network is our ``chance'' baseline: anything the honest network shows that the random one does not is real structure, not a side effect of how many links each node has.
+The random network tells us what to expect from the number of connections alone, so differences between the honest and random networks are structure that comes from the diagnoses.
 
-\subsection{Network measures}
-
+\paragraph{What we measure.}
 \begin{itemize}
-  \item \textbf{Transitivity} (global clustering): the share of connected triples that close into triangles. High values mean ``friends of friends are friends''.
-  \item \textbf{Average path length}: the mean number of hops between two nodes, measured inside the largest connected piece.
-  \item \textbf{Communities and modularity.} A \emph{community} is a group of nodes with many links inside and few links outside. \emph{Modularity} measures how much denser the inside is than expected by chance (values near 0.3 or more indicate clear communities). We find communities with the Louvain~\cite{blondel2008fast} and Leiden~\cite{traag2019louvain} algorithms; Leiden fixes a flaw in Louvain that can produce badly connected groups. We compare the two partitions with the \emph{adjusted Rand index} (ARI), which is 1 for identical partitions and about 0 for unrelated ones.
-  \item \textbf{Centrality}: degree, betweenness, and similar scores that measure how ``important'' a node is. We check whether centrality alone separates outcomes using the AUROC (area under the ROC curve; 0.5 means no information).
-  \item \textbf{Homophily}: the tendency of linked nodes to share the same outcome. We use the \emph{class-insensitive} homophily of Lim et al.~\cite{lim2021large}. For each class, it compares the share of a node's links that go to the same class with the size of that class, and averages the excess. It is 0 when links ignore the outcome and 1 when every link joins nodes with the same outcome. Unlike simple ``same-outcome share of links'', it is not inflated when one class is much larger than the other.
-  \item \textbf{Same-patient links}: links between two stays of the same person. We report their share and recompute homophily without them.
-  \item \textbf{Community outcome variance ($\eta^2$)}: the share of the variance of the outcome (0 or 1) that is explained by community membership. $\eta^2 = 0$ means every community has the same outcome rate; $\eta^2 = 1$ means communities are pure.
+  \item \textbf{Triangle rate} (transitivity): of all pairs of a stay's neighbours, the share that are also connected to each other.
+  \item \textbf{Average path length}: the average number of steps between two stays in the largest connected group.
+  \item \textbf{Communities}: groups of stays with many connections inside and few outside, found with the Leiden algorithm~\cite{traag2019louvain}, an improved version of Louvain~\cite{blondel2008fast}. \emph{Modularity} scores how clearly the groups are separated (above about 0.3 is clear).
+  \item \textbf{Homophily}: whether connected stays share the same outcome more often than expected from how common each outcome is~\cite{lim2021large}. It is 0 when connections ignore the outcome and 1 when every connection joins stays with the same outcome.
+  \item \textbf{Explained by communities}: the share of the variation in outcomes that is explained by which community a stay belongs to (0 means every community has the same outcome rate).
 \end{itemize}
 
-\subsection{Disease-trajectory network}
-
-The second type of network has diseases as nodes instead of stays. We take the 200 most common diagnoses. For each ordered pair (A, B) we compute a simple \emph{relative risk}: the share of patients with A who receive B within the following 365 days, divided by the share of \emph{all} patients who ever have B. A value above 1 means B follows A more often than its overall frequency would suggest. A link A$\rightarrow$B is kept if at least 10 patients follow this path and a one-sided binomial test against the population rate is significant after a Bonferroni correction for all $200 \times 199 \approx 40{,}000$ ordered pairs. (Bonferroni simply divides the significance threshold by the number of tests, to avoid finding patterns by luck.) We then ignore direction (keeping the larger of the two relative risks) and split the network with the Girvan--Newman algorithm~\cite{girvan2002community}, which repeatedly removes the link with the highest betweenness and produces a tree of splits called a \emph{dendrogram}. We cut the tree at the level with the highest modularity, and compare with Louvain.
-
-\subsection{Spreading and spectral partitioning}
-
-To see how information would ``flow'' through the patient networks, we run two classic spreading models:
-\begin{itemize}
-  \item \textbf{SIR model}~\cite{kermack1927contribution}: each node is Susceptible, Infected, or Recovered. At each step an infected node infects each neighbour with probability $\beta = 0.3$ and recovers with probability $\gamma = 0.1$. Each run starts from 10 random stays in the largest connected piece; we record the share of stays ever infected after 10 steps, averaged over 20 runs.
-  \item \textbf{Independent cascade}~\cite{kempe2003maximizing}: we start from the stays with the outcome; each newly active node gets one chance to activate each neighbour with probability 0.1. We then ask what share of the reached stays also have the outcome.
-\end{itemize}
-Finally, we apply \emph{spectral partitioning}~\cite{vonluxburg2007tutorial}, which splits the largest connected piece using the eigenvectors of its Laplacian matrix, as a different way to find communities. We try 10 groups and as many groups as Leiden finds. For spreading and cascades the random baseline is a single rewired network.
+\paragraph{A network of diagnoses.} We also build a second kind of network, in which the nodes are the 200 most common diagnoses. We connect diagnosis A to diagnosis B when patients with A receive B within the following year more often than patients in general receive B. A connection is kept only if at least 10 patients show the pattern and it passes a strict significance test that accounts for the roughly 40,000 pairs tested. We then split this network into groups with the Girvan--Newman method~\cite{girvan2002community}, which repeatedly removes the connection that most acts as a bridge between groups, producing a tree of splits.
 
 \section{Results}
 \label{sec:results}
 
-\subsection{Patient networks for long stay}
+\subsection{Patient networks are made of many tight groups}
 
-Table~\ref{tab:networks} gives the main numbers for both questions. Figure~\ref{fig:pictures} shows the three long-stay networks.
+Table~\ref{tab:networks} gives the main measures and Figure~\ref{fig:pictures} shows the three long-stay networks. The honest networks are very different from random ones. Their triangle rate is about 0.5, against 0.001--0.002 in the random networks: patients with similar histories form tight triangles. Paths are longer than in the random networks (9.4 against 5.3 steps for long stay), because the network is a chain of local groups rather than one well-mixed whole. The community structure is very strong (modularity 0.94 and 0.92), with hundreds of small groups.
 
-\begin{table}[ht]
+\begin{table}[!htbp]
 \centering
-\caption{Network measures for honest, cheating, and random networks. Random values are means over 10 seeds. Homophily uses the class-insensitive definition of Lim et al.~\cite{lim2021large}, where 0 is chance.}
+\caption{Network measures for the honest, cheating, and random networks. Random values are averages over 10 rewirings.}
 \label{tab:networks}
+\small
 \begin{tabular}{lrrrrrr}
 \toprule
  & \multicolumn{3}{c}{Long stay} & \multicolumn{3}{c}{New high blood pressure} \\
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}
 Measure & Honest & Cheating & Random & Honest & Cheating & Random \\
 \midrule
-Links                       & 18,581 & 17,478 & 18,581 & 9,787 & 8,883 & 9,787 \\
-In largest piece            & 88.2\% & 62.8\% & 95.6\% & 88.0\% & 74.6\% & 95.1\% \\
-Transitivity                & 0.494 & 0.660 & 0.001 & 0.479 & 0.589 & 0.002 \\
-Average path (hops)         & 9.4 & 11.5 & 5.3 & 8.1 & 9.4 & 4.8 \\
-Leiden modularity           & 0.938 & 0.977 & 0.546 & 0.922 & 0.958 & 0.540 \\
-Louvain--Leiden ARI         & 0.750 & 0.746 & 0.189 & 0.775 & 0.764 & 0.250 \\
+Connections                 & 18,581 & 17,478 & 18,581 & 9,787 & 8,883 & 9,787 \\
+Stays in largest group      & 88.2\% & 62.8\% & 95.6\% & 88.0\% & 74.6\% & 95.1\% \\
+Triangle rate               & 0.494 & 0.660 & 0.001 & 0.479 & 0.589 & 0.002 \\
+Average path (steps)        & 9.4 & 11.5 & 5.3 & 8.1 & 9.4 & 4.8 \\
+Modularity                  & 0.938 & 0.977 & 0.546 & 0.922 & 0.958 & 0.540 \\
 Homophily                   & 0.211 & 0.201 & 0.010 & 0.226 & 0.263 & 0.002 \\
-Homophily, no same-patient  & 0.239 & 0.228 & 0.010 & 0.115 & 0.154 & 0.002 \\
-Same-patient links          & 37.8\% & 39.3\% & 0.1\% & 29.5\% & 29.5\% & 0.2\% \\
-Community $\eta^2$          & 0.109 & 0.130 & 0.008 & 0.074 & 0.136 & 0.010 \\
+Homophily, different patients & 0.239 & 0.228 & 0.010 & 0.115 & 0.154 & 0.002 \\
+Same-patient connections    & 37.8\% & 39.3\% & 0.1\% & 29.5\% & 29.5\% & 0.2\% \\
+Explained by communities & 0.109 & 0.130 & 0.008 & 0.074 & 0.136 & 0.010 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -155,167 +131,120 @@ Community $\eta^2$          & 0.109 & 0.130 & 0.008 & 0.074 & 0.136 & 0.010 \\
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\textwidth]{02_network_pictures.png}
-\caption{Layouts of the honest, cheating, and random long-stay networks. Purple nodes are long stays. The honest and cheating networks break into many small, tight clusters; the random network is one tangled ball.}
+\caption{The honest, cheating, and random long-stay networks (positions are for display only). Purple nodes are long stays. The honest and cheating networks break into many small, tight clusters; the random network is one tangled ball.}
 \label{fig:pictures}
 \end{figure}
 
-\paragraph{Structure.} The honest network has 18,581 links and 88.2\% of stays sit in one connected piece. Its transitivity is 0.494, compared with 0.001 (95\% range 0.0006--0.0013) in the random networks: patients with similar histories form tight triangles. Paths are long (9.4 hops against 5.3 in random networks), which means the network is a chain of local clusters rather than a ``small world''. Leiden finds very strong communities (modularity 0.938 against 0.546), and Louvain finds largely the same ones (ARI 0.750 against 0.189 for random networks). The cheating network is even more clustered (0.660) but more fragmented: only 62.8\% of stays are in the largest piece.
+\subsection{Connected stays share outcomes}
 
-\paragraph{Outcomes.} The honest network is organised around the outcome. Homophily is 0.211, against 0.010 (95\% range 0.008--0.012) for random networks. Put simply, 40\% of a long-stay patient's neighbours are also long-stay, while the base rate is 25\%. Communities differ strongly in their long-stay rate (Figure~\ref{fig:groups}), and community membership explains $\eta^2 = 0.109$ of the outcome variance, versus 0.008 by chance.
+In both honest networks, connected stays share outcomes far more than chance: homophily is 0.21 for long stay and 0.23 for high blood pressure, against about 0.01 in the random networks. In plain numbers, 40\% of the connections of a long stay lead to another long stay, although only 25\% of all stays are long (24\% in the random network). For high blood pressure the figures are 32\% against a base rate of 13\%.
+
+The communities show the same pattern (Figure~\ref{fig:groups}). Some communities have almost no long stays, while others have more than half, whereas in the random network every community stays close to the overall rate. Community membership explains about 11\% of the variation in long stay and 7\% in high blood pressure, against 1\% by chance.
 
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=0.49\textwidth]{02_group_outcome_rates.png}\hfill
 \includegraphics[width=0.49\textwidth]{03_group_outcome_rates.png}
-\caption{Outcome rate in each Leiden community of the honest network (communities with at least 20 stays). Left: long stay (base rate 25.4\%). Right: new high blood pressure (base rate 12.8\%). Many communities lie far above or below the base rate.}
+\caption{Outcome rate in each community with at least 20 stays, sorted from lowest to highest. Left: long stay. Right: new high blood pressure. Honest and cheating communities range from almost no positives to well above the overall rate (dotted line); random communities all sit near it.}
 \label{fig:groups}
 \end{figure}
 
-\paragraph{Same-patient links.} 37.8\% of honest links join two stays of the same patient. These links agree on the outcome 68.5\% of the time, compared with 62\% expected by chance ($0.254^2 + 0.746^2$). Removing them does not weaken the result: homophily rises slightly to 0.239. So the outcome pattern is not just ``the same person, twice''.
+\paragraph{Connections between stays of the same patient.} About a third of the connections join two stays of the same patient (37.8\% for long stay, 29.5\% for high blood pressure). For long stay, these connections agree on the outcome 68.5\% of the time, close to the 62\% expected if outcomes were drawn at random, and removing them slightly \emph{raises} homophily (0.211 to 0.239). For high blood pressure they agree 94.9\% of the time against 77.7\% expected, and removing them halves homophily (0.226 to 0.115). So for long stay the pattern comes from different patients with similar histories, while for high blood pressure much of it comes from the same patient appearing several times.
 
-\paragraph{Centrality.} Being central does not mean being sick. Centrality scores alone separate outcomes with AUROC between 0.47 and 0.55, which is essentially no information.
+\paragraph{Being central does not mean being sick.} How connected or central a stay is says almost nothing about its outcome: centrality scores separate positive from negative stays no better than a coin flip (AUROC 0.47--0.58).
 
-\paragraph{What cheating changes.} Surprisingly, almost nothing. Homophily drops slightly from 0.211 to 0.201. Links that appear only in the cheating network join same-outcome stays 68.6\% of the time, compared with 70.8\% for links that appear only in the honest network (Figure~\ref{fig:cheat-long}). The strongest single ``giveaway'' diagnosis in the cheating vectors is pleural effusion (fluid around the lungs), present in 63\% of long stays and 37\% of the others, a gap of 0.27. That is a real difference, but it is spread across many stays and does not reorganise the network. The reason is simple: the outcome ``stay of 7 days or more'' is not itself a diagnosis code, so the future record does not contain the answer directly.
+\subsection{Leakage depends on the question}
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.9\textwidth]{02_what_cheating_changes.png}
-\caption{Long stay. Left: share of links joining two stays with the same outcome, for links in both networks, only in the honest network, and only in the cheating network. Right: homophily with and without same-patient links. Cheating adds no outcome information here.}
-\label{fig:cheat-long}
-\end{figure}
+Figure~\ref{fig:both} compares the honest and cheating networks for both questions.
 
-\subsection{Patient networks for new high blood pressure}
+For \textbf{long stay}, adding the future barely matters for outcomes. Homophily even drops slightly (0.211 to 0.201). The network's \emph{shape} does change: with twice as many diagnoses per stay, it breaks into more pieces (only 62.8\% of stays remain in the largest group). The strongest single giveaway in the future record is pleural effusion (fluid around the lungs), present for 63\% of long stays and 37\% of the others. That is a real difference, but it does not reorganise the network. The reason is simple: ``a stay of 7 days or more'' is not itself a diagnosis, so the future record does not contain the answer.
 
-The hypertension networks have the same basic shape (Table~\ref{tab:networks}): high transitivity (0.479 against 0.002 random), very strong communities (modularity 0.922), and clear homophily (0.226 against 0.002). Figure~\ref{fig:pictures-htn} shows the three networks and Figure~\ref{fig:groups} (right) the outcome rate per community. Here, however, same-patient links matter much more. They make up 29.5\% of links and agree on the outcome 94.9\% of the time (chance: 77.6\%). Without them, honest homophily falls to 0.115.
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=\textwidth]{03_network_pictures.png}
-\caption{Honest, cheating, and random networks for new high blood pressure, drawn the same way as Figure~\ref{fig:pictures}.}
-\label{fig:pictures-htn}
-\end{figure}
-
-\paragraph{What cheating changes.} This time leakage is visible (Figure~\ref{fig:cheat-htn}). Homophily rises from 0.226 to 0.263, and without same-patient links it rises from 0.115 to 0.154, a 34\% increase. Community $\eta^2$ almost doubles, from 0.074 to 0.136. The cause is obvious once we look: the cheating vectors contain the essential-hypertension concept for every positive stay (by definition) but for only 13\% of negative stays (those diagnosed more than a year later), a gap of 0.87. In the honest vectors no single diagnosis differs by more than 0.11 between the classes. The future record contains the answer.
-
-Why does homophily rise by only 0.038 when the answer is sitting in the vector? Because TF-IDF gives very little weight to concepts that many patients share, and hypertension is one of the most common diagnoses in the data. A single heavily down-weighted entry cannot move cosine similarity much. This is a useful warning: leakage can be present and still look small in one summary number.
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.9\textwidth]{03_what_cheating_changes.png}
-\caption{New high blood pressure. Same panels as Figure~\ref{fig:cheat-long}. Cheating-only links are more often same-outcome, and homophily without same-patient links rises by about a third.}
-\label{fig:cheat-htn}
-\end{figure}
-
-As for long stay, centrality does not predict the outcome (AUROC 0.47--0.58). Figure~\ref{fig:both} compares the two questions side by side.
+For \textbf{new high blood pressure}, leakage is clearly visible. Homophily rises from 0.226 to 0.263, and among connections between different patients it rises from 0.115 to 0.154, an increase of about a third. Community membership explains almost twice as much of the outcome (7.4\% to 13.6\%). Here the future record does contain the answer: by definition, every positive stay's later record includes the hypertension diagnosis, against only 13\% of negative stays (those diagnosed more than a year later). In the honest record, no single diagnosis differs by more than 11 percentage points between the two groups. This is a property of how the task is defined, not an early warning sign a hospital could use.
 
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\textwidth]{06_both_questions.png}
-\caption{Both questions side by side: homophily, homophily without same-patient links, and the strongest single-diagnosis giveaway, for honest and cheating networks. Leakage is inert for long stay and visible for high blood pressure.}
+\caption{Honest (blue), cheating (orange), and random (green) networks for both questions. Left: homophily. Middle: homophily using only connections between different patients. Right: the largest difference between positive and negative stays in how often a single diagnosis appears. Cheating changes little for long stay but clearly helps for high blood pressure, where the diagnosis being predicted appears in the future record.}
 \label{fig:both}
 \end{figure}
 
-\subsection{Robustness checks}
-\label{sec:robust}
-
-\paragraph{Coding era.} If we build the patient networks on raw billing codes instead of SNOMED concepts, stays almost never link across the 2015 switch: only 1 of 18,693 long-stay links and 5 of 9,892 hypertension links join an ICD-9 stay to an ICD-10 stay. Could the coding era explain the outcome homophily? To test this we shuffle outcomes \emph{within} each era, which keeps any era effect but destroys everything else. Homophily falls to 0.004 (long stay) and 0.014 (hypertension), compared with 0.211 and 0.226 in reality. So the era explains at most about 2\% and 6\% of the observed homophily.
-
-With SNOMED concepts instead, 3.0\% (long stay) and 4.1\% (hypertension) of links cross the switch, so concepts do reconnect the two eras.
-
-\paragraph{Billing codes instead of concepts.} The leakage conclusions hold on raw billing codes too: cheating raises hypertension homophily from 0.226 to 0.282 ($+0.056$), while long-stay homophily stays flat (0.209 against 0.205).
-
-\subsection{Disease trajectories}
-
-On raw billing codes the trajectory network has 134 diagnoses and 584 links, but it falls into two large pieces of 69 codes (all ICD-10) and 47 codes (all ICD-9) with no link between them (Figure~\ref{fig:rawtree}). The main split in the Girvan--Newman tree is therefore simply ``before 2015'' versus ``after 2015'', which is an artifact, not medicine.
+Why does homophily rise only modestly when the answer is in the record? Because the weighting gives very little weight to diagnoses that many patients share, and hypertension is one of the most common diagnoses in the data. Figure~\ref{fig:cheat-htn} shows the effect connection by connection. This is a useful warning: leakage can be present and still look small in a single summary number.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.85\textwidth]{04_raw_codes_tree.png}
-\caption{Girvan--Newman dendrogram of the disease-trajectory network built on raw billing codes. The top split separates ICD-9 codes from ICD-10 codes: the coding era, not disease biology.}
+\includegraphics[width=0.9\textwidth]{03_what_cheating_changes.png}
+\caption{New high blood pressure. Left: share of connections joining two stays with the same outcome, for connections found in both networks, only in the honest network, and only in the cheating network (dotted line: chance). Right: homophily with all connections (filled) and with only connections between different patients (open).}
+\label{fig:cheat-htn}
+\end{figure}
+
+\subsection{Billing codes can split the data in two}
+\label{sec:robust}
+
+If we build the patient networks from raw billing codes instead of standardised codes, stays from before and after the 2015 switch almost never connect: only 1 of 18,693 long-stay connections and 5 of 9,892 high-blood-pressure connections cross the switch. (These billing-code networks have slightly different numbers of connections than the main ones.) With standardised codes, 3.0\% and 4.1\% of connections cross it. To check that the switch does not explain our outcome results, we shuffled outcomes separately among stays before and after 2015, which keeps any before/after difference but removes everything else. Homophily falls to 0.004 and 0.014, against 0.211 and 0.226 in reality, so the switch accounts for at most about 2\% and 6\% of the observed homophily. The leakage results also hold on billing codes: cheating raises high-blood-pressure homophily from 0.226 to 0.282 and leaves long stay unchanged (0.209 against 0.205).
+
+\subsection{Diseases that follow each other form families}
+
+The diagnosis network makes the billing-code problem even clearer. Built on raw billing codes, it has 134 diagnoses and 584 connections, but it falls apart into one piece of 69 codes, all ICD-10, and one of 47 codes, all ICD-9, with no connection between them (Figure~\ref{fig:rawtree}). Its first split separates old codes from new ones: it reflects a change in paperwork, not in medicine.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.75\textwidth]{04_raw_codes_tree.png}
+\caption{Tree of splits for the diagnosis network built on raw billing codes. The top split separates ICD-9 from ICD-10 codes.}
 \label{fig:rawtree}
 \end{figure}
 
-On SNOMED concepts the network has 79 concepts and 142 links, with one main piece of 60 concepts. The best Girvan--Newman cut gives 13 groups with modularity 0.566. Louvain finds a similar split: the two partitions agree well (ARI 0.65). The largest families are clinically recognisable (Figure~\ref{fig:families}):
+With standardised codes the network has 79 diagnoses and 142 connections, with one main piece of 60 diagnoses. The best cut of the Girvan--Newman tree gives 13 groups (modularity 0.57), similar to what Louvain finds (adjusted Rand index 0.65, where 1 means identical groups). The largest groups are clinically recognisable (Figure~\ref{fig:families}):
 \begin{itemize}
-  \item \textbf{Lung and respiratory failure} (19 concepts): pulmonary congestion, acute respiratory failure, pleural effusion, pneumonia, atelectasis.
-  \item \textbf{Sepsis and kidney failure} (18): acute renal failure, septic shock, sepsis, bacteremia, acidosis.
-  \item \textbf{Heart failure} (14): congestive heart failure, cardiomyopathy, chronic pulmonary edema, hypertensive heart disease.
-  \item Smaller families: atrial arrhythmias (5), pregnancy (4), and type 2 diabetes complications (4).
+  \item \textbf{Lung and breathing failure} (19 diagnoses): acute respiratory failure, pleural effusion, pneumonia, and collapsed lung tissue (atelectasis).
+  \item \textbf{Sepsis and kidney failure} (18): sepsis, septic shock, bacteria in the blood, and acute kidney failure.
+  \item \textbf{Heart failure} (14): congestive heart failure, cardiomyopathy, and heart disease caused by high blood pressure.
+  \item Smaller groups: irregular heartbeat (5), pregnancy (4), and type 2 diabetes complications (4).
 \end{itemize}
-Some small pairs are the same condition coded two ways, such as ``vomiting'' and ``nausea and vomiting''. These are coding habits rather than true progressions.
+A few small pairs are the same condition recorded two ways, such as ``vomiting'' and ``nausea and vomiting''. These reflect recording habits rather than disease progression.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textwidth,height=0.6\textheight,keepaspectratio]{04_disease_families.png}
-\caption{Girvan--Newman dendrogram of the disease-trajectory network on SNOMED concepts, coloured by the 13 families at the cut with maximum modularity. Large families include lung/respiratory failure, sepsis/kidney failure, and heart failure.}
+\includegraphics[width=\textwidth,height=0.55\textheight,keepaspectratio]{04_disease_families.png}
+\caption{Tree of splits for the diagnosis network built on standardised codes, coloured by the 13 groups at the best cut. The large groups are lung and breathing failure, sepsis and kidney failure, and heart failure.}
 \label{fig:families}
 \end{figure}
 
-\subsection{Spreading and spectral partitioning}
+\subsection{How things spread through the patient networks}
 
-In the SIR model on the long-stay networks, the share of stays ever infected after 10 steps is 0.27 on the honest network, 0.13 on the cheating network, and 0.87 on the random network (Figure~\ref{fig:sir}). For high blood pressure the numbers are 0.47, 0.31, and 0.90. Clustering and long paths trap the spread inside local groups; the random network, with short paths and almost no triangles, lets it reach nearly everyone.
+Finally, we simulate how a signal would travel through the patient networks. This is a mathematical analogy, not a model of real infection, and it shows how network shape affects the reach of information from one stay to its neighbours. In the SIR model~\cite{kermack1927contribution}, each stay is susceptible, ``infected'', or recovered. We start from 10 random stays; at each step an infected stay passes the signal to each neighbour with probability 0.3 and recovers with probability 0.1. After 10 steps the signal has reached 27\% of stays in the honest long-stay network, 13\% in the cheating network, and 87\% in the random network (47\%, 31\%, and 90\% for high blood pressure; Figure~\ref{fig:spread}, left). Tight groups and long paths slow the spread; the random network, with short paths and almost no triangles, lets it reach nearly everyone quickly.
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{05_sir_spreading.png}
-\caption{SIR spreading ($\beta = 0.3$, $\gamma = 0.1$, 10 starting stays, mean of 20 runs) on honest, cheating, and random networks for both questions. Spreading is much slower on the clustered real networks than on random ones.}
-\label{fig:sir}
-\end{figure}
-
-The independent cascade asks a more clinical question: if we start from stays with the outcome and follow links, do we mostly reach other stays with the outcome? For long stay, about 37\% of reached stays are long stays on both the honest and the cheating network, against a base rate of 25\% and about 23\% on the random network. For high blood pressure, about 26\% (honest) and 30\% (cheating) of reached stays are positive, against a base rate of 13\% and about 12.5\% on random networks (Figure~\ref{fig:cascade}). This is the intuition behind label propagation, which we will test in Project~2.
+The independent cascade~\cite{kempe2003maximizing} asks a more clinical question. We start from a random 5\% of the stays \emph{with} the outcome, and each newly reached stay gets one chance to pass the signal to each neighbour (probability 0.1). Of the stays reached in the honest network, 37\% are long stays (base rate 25\%) and 26\% are high-blood-pressure cases (base rate 13\%); in the random network the reached stays match the base rate (Figure~\ref{fig:spread}, right). Following connections from known cases therefore leads to other likely cases. This is the idea behind label propagation, a simple way to make predictions from a network.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.7\textwidth]{05_cascade_reach.png}
-\caption{Independent cascade (spread chance 0.1 per link) started from stays with the outcome. Bars show the share of reached stays that also have the outcome, compared with the base rate.}
-\label{fig:cascade}
+\includegraphics[width=0.49\textwidth]{05_sir_spreading.png}\hfill
+\includegraphics[width=0.49\textwidth]{05_cascade_reach.png}
+\caption{Left: share of stays ever reached in the SIR simulation over time (average of 20 runs). Right: share of stays reached by a cascade from positive stays that are themselves positive, against the base rate (dotted line).}
+\label{fig:spread}
 \end{figure}
 
-Spectral partitioning into 10 groups on the honest long-stay network reaches modularity 0.41, far below Leiden's 0.93. It also explains less of the outcome ($\eta^2 = 0.04$ against 0.11) and barely agrees with Leiden (ARI 0.02). The network consists of many small, tight clusters, and 10 cuts are simply too few. When we let spectral partitioning use as many groups as Leiden finds (74), it nearly catches up: modularity 0.89, $\eta^2 = 0.11$, ARI 0.43. Hypertension behaves the same way (10 groups: modularity 0.47; 51 groups: 0.87, $\eta^2 = 0.08$ against 0.09, ARI 0.56). So the main lesson is about the \emph{number} of groups: these networks have dozens of natural communities, not a few big ones.
+We also tried spectral partitioning~\cite{vonluxburg2007tutorial}, another way to split a network into groups. With 10 groups it finds much weaker structure than Leiden (modularity 0.41 against 0.93), but with as many groups as Leiden finds it nearly catches up (0.89). These networks have dozens of natural communities, not a few large ones.
 
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{The story.} Honest patient networks, built only from what was known before the prediction time, are organised around clinical outcomes well beyond chance. They are highly clustered, split into strong communities, and those communities differ in their outcome rates. Leakage behaves very differently for the two questions. For long stay it is inert: the outcome is a length of time, not a diagnosis, so the future record adds noise but not the answer. For new hypertension it is visible: the future record literally contains the hypertension diagnosis, and the cheating network becomes more outcome-aligned. Even then the effect is muted by TF-IDF, which reminds us that leakage can hide inside small changes in summary numbers.
+Honest patient networks, built only from what was known at the time, are organised around clinical outcomes well beyond chance. They are highly clustered, split into strong communities, and those communities differ sharply in their outcome rates. Leakage behaves very differently for the two questions. For long stay, the outcome is a length of time rather than a diagnosis, so the future record adds detail but not the answer. For new high blood pressure, the future record contains the diagnosis itself, and the cheating network becomes more aligned with the outcome. Even then the effect looks modest in summary numbers, a reminder that leakage can hide inside small changes.
 
-\paragraph{Network analysis as a debugging tool.} Before any model was trained, simple network measures exposed three hidden artifacts: (1) the 2015 coding-era split, which splits both patient and disease networks when raw codes are used; (2) same-patient links, which make up a third of all links and, for hypertension, carry much of the outcome signal; and (3) a labeling quirk in which some official hypertension prediction times belong to patients who already had the diagnosis. Each of these would have quietly inflated or distorted the results of a machine learning model.
+Simple network measures also revealed three problems in the data before any model was trained: the 2015 billing-code switch, which splits both kinds of networks when raw codes are used; connections between stays of the same patient, which carry much of the high-blood-pressure signal; and some official high-blood-pressure cases whose patients already had the diagnosis. Each of these could quietly inflate the results of a prediction model.
 
-\paragraph{Clinical meaning.} The disease-trajectory families match medical knowledge: respiratory failure clusters with pneumonia and pleural effusion, sepsis with kidney failure and acidosis, and heart failure with cardiomyopathy and hypertensive heart disease. Pleural effusion, the strongest long-stay giveaway in the cheating vectors, sits in the respiratory family, consistent with long stays being driven by serious lung and heart illness.
+The diagnosis families agree with medical knowledge: breathing failure groups with pneumonia and pleural effusion, sepsis with kidney failure, and heart failure with cardiomyopathy. Pleural effusion, the strongest long-stay giveaway in the future record, belongs to the breathing-failure family, consistent with long stays being driven by serious lung and heart illness.
 
-\paragraph{Limitations.}
-\begin{itemize}
-  \item This is descriptive network analysis, not prediction. We show that structure exists, not that it predicts well on new patients.
-  \item We use one main graph recipe (diagnoses only, mutual $k = 10$). Other features (drugs, lab tests) or other $k$ could change the picture.
-  \item Homophily is computed with all labels, which is fine for description but would be leakage in a prediction setting.
-  \item Our rebuilt labels differ slightly from Stanford's official ones, although the conclusions hold with both.
-  \item Trajectory links mean co-occurrence within a year, not causation.
-  \item We symmetrise the trajectory network before Girvan--Newman, which discards the direction of progression.
-\end{itemize}
+This study has several limitations. It describes patterns and does not test predictions on new patients. We use one way of building the networks (diagnoses only, 10 nearest neighbours), and adding medications or lab tests, or changing the number of neighbours, could change the picture. Homophily is computed with all outcomes known, which is fine for description but would itself be leakage in a prediction setting. Our rebuilt labels differ slightly from Stanford's official ones. Finally, a connection in the diagnosis network means two diagnoses tend to occur within a year of each other, not that one causes the other, and our grouping ignores which diagnosis came first.
 
-\section{Conclusion and next steps}
+\section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-Classical network analysis on EHRSHOT shows that honest patient networks carry real outcome structure, that leakage depends on whether the outcome itself appears in the future record, and that simple measures can expose data artifacts early. Table~\ref{tab:goals} maps the four Project~1 goals to the sections of this report.
+Networks of similar patients built from EHRSHOT carry real outcome structure: stays that look alike in their history tend to share outcomes, and the network's communities differ widely in outcome rates. Whether information from the future distorts these networks depends on whether the outcome itself appears in the future record. It does for a new diagnosis such as high blood pressure, and it does not for length of stay. Along the way, simple network measures exposed data problems early, before they could affect a model.
 
-\begin{table}[ht]
-\centering
-\caption{How this report meets the Project 1 goals.}
-\label{tab:goals}
-\begin{tabular}{p{0.45\textwidth}p{0.45\textwidth}}
-\toprule
-Project 1 goal & Where it is addressed \\
-\midrule
-(1) Represent EHR data as a network and understand its structure & Sections~\ref{sec:data}--\ref{sec:methods} (nodes, vectors, mutual $k$-NN graph); Section~\ref{sec:results}, Table~\ref{tab:networks} (transitivity, paths, modularity) \\
-(2) Discover recurring patterns, groups, or sequences & Section~\ref{sec:results}: Leiden/Louvain communities, disease-trajectory families, spreading and spectral partitioning \\
-(3) Interpret structures as potential medical insights & Section~\ref{sec:results} (disease families, giveaway diagnoses) and Section~\ref{sec:discussion} \\
-(4) Practice classical SNA tooling before GNNs & Section~\ref{sec:methods}: clustering, centrality, homophily, Girvan--Newman, Louvain/Leiden, SIR, cascades, spectral methods; next steps below \\
-\bottomrule
-\end{tabular}
-\end{table}
+Our next step is to test whether honest patient networks actually improve predictions when only a handful of labelled examples are available, the \emph{few-shot} setting of the EHRSHOT benchmark~\cite{wornow2023ehrshot}. We will compare graph neural networks and label propagation on the honest networks against methods that ignore the network, use the cheating networks only as a leakage check, and handle connections between stays of the same patient explicitly.
 
-\paragraph{Project 2.} The next project will ask whether honest patient networks improve \emph{few-shot} predictions, that is, predictions trained on only a handful of labelled examples, as in the EHRSHOT benchmark~\cite{wornow2023ehrshot}. We will compare graph neural networks and label propagation on the honest networks against models that ignore the graph, keeping the cheating networks only as a leakage check and handling same-patient links explicitly.
-
-\paragraph{Reproducibility.} All code, notebooks, and aggregate results are in our course repository. A Docker check rebuilds a clean environment, re-runs every notebook from scratch, and confirms that the results in this report are reproduced. Patient-level data never leave our own machines, as required by the EHRSHOT data use agreement.
+\paragraph{Code and reproducibility.}\sloppy\ All code, analysis notebooks, and summary results are available at
+\begin{center}\url{https://github.com/patient-graph-lab/ehrshot-patient-graphs}\end{center} To reproduce the analysis, install the Python environment with \texttt{uv sync}, place the course's EHRSHOT tables in \texttt{data/omop/}, and run the six notebooks in order. Alternatively, \texttt{make docker-check} runs everything in a clean container and confirms that the results in this report are reproduced. Patient-level data never leave our own machines, as required by the dataset's terms of use.
 
 \bibliographystyle{plain}
 \bibliography{references}
