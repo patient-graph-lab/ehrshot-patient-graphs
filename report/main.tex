@@ -1,30 +1,40 @@
 % Similar Patients, Shared Outcomes -- CIS 4930 / CAI 5155 Project 1 report.
 %
-% Each section lives in sections/. Figures are read from figures/ (Overleaf
-% upload, made by `make overleaf`) or straight from the repo's results folder.
-% Every number was checked against results/aggregate/*.csv on Oct 16 2026.
-\documentclass[11pt]{article}
+% Two-column layout. Each section lives in sections/. Figures are read from
+% figures/ (Overleaf upload, made by `make overleaf`) or straight from the
+% repo's results folder. Every number was checked against
+% results/aggregate/*.csv on Oct 16 2026.
+\documentclass[10pt,twocolumn]{article}
 
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=0.75in,columnsep=0.3in]{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
-\usepackage{caption}
-\usepackage[section]{placeins}
+\usepackage[font=small,labelfont=bf]{caption}
 \usepackage{hyperref}
 
 \graphicspath{{figures/}{../results/aggregate/figures/}}
+
+% Let figures take more of a page before LaTeX pushes them back.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.75}
+\renewcommand{\dblfloatpagefraction}{0.75}
 
 \title{Similar Patients, Shared Outcomes:\\
 A Network Analysis of Patient Similarity and Information Leakage in EHRSHOT}
 \author{Sanjay Malla \and Quade Leonard \and Ean Stedham}
 \date{CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs\\
-University of South Florida, Fall 2026\\[4pt]
-October 2026}
+University of South Florida, Fall 2026}
 
 \begin{document}
-\maketitle
-
-\input{sections/abstract}
+\twocolumn[
+  \begin{@twocolumnfalse}
+    \maketitle
+    \input{sections/abstract}
+    \vspace{1em}
+  \end{@twocolumnfalse}
+]
 
 \input{sections/1_introduction}
 \input{sections/2_data}
