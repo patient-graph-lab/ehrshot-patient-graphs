@@ -1,62 +1,38 @@
 # Data Access
 
-This repository contains **no patient data of any kind**, at any level of aggregation finer than the summary statistics in `results/aggregate/`. This is a hard rule, enforced by `.gitignore`, pre-commit hooks, and a CI gate (`data-guard`) on every pull request — see `.github/workflows/data-guard.yml`.
+This repo has **no patient data**, not even in small pieces. Only code, summary numbers, and charts. `.gitignore`, pre-commit hooks, and a CI check (`data-guard`) enforce this on every pull request.
 
-## What this project uses
+## What we use
 
-- **EHRSHOT** (Wornow et al., NeurIPS 2023 Datasets & Benchmarks, [arXiv:2307.02028](https://arxiv.org/abs/2307.02028)) — de-identified EHR data for 6,739 patients, distributed by Stanford via Redivis under a Data Use Agreement (DUA).
-- This project uses the **MEDS** format (via `meds_reader`) and the **CLMBR-T-base** frozen embeddings shipped in `EHRSHOT_ASSETS/`.
+- **The course dataset:** the professor's trimmed OMOP tables (a zip of CSV files). Everyone on the team uses only this.
+- **EHRSHOT** (Wornow et al., NeurIPS 2023 Datasets & Benchmarks, [arXiv:2307.02028](https://arxiv.org/abs/2307.02028)): a de-identified EHR benchmark from Stanford. Our outcome definitions come from it.
 
 ## Getting your own access
 
-1. Follow Stanford's EHRSHOT access process — see the [`ehrshot-benchmark`](https://github.com/som-shahlab/ehrshot-benchmark) repository for current instructions.
-2. **Each collaborator must obtain their own DUA-approved access.** Repository access conveys no rights to the data. Do not share your copy of the data with another team member, including other members of this project — each person must go through the access process independently.
-3. Once you have access, point the codebase at your own local copy — never a relative path from the repo root:
-   ```bash
-   export EHRSHOT_DATA_ROOT=/path/to/your/local/ehrshot/copy
-   ```
-4. Verify your copy matches what the team is using by comparing against `data/checksums.txt` (`sha256sum` each file) — this lets two collaborators confirm they have the same dataset version without either of them transmitting the data itself.
+1. Get your own approved access to the course data through the course's access process. Each person needs their own.
+2. Never share your copy with a teammate, even someone on this project. Repo access doesn't give anyone rights to the data.
+3. Put the CSV files in `data/omop/` inside the repo. That folder is gitignored.
 
-## Where the data lives: this device only (team decision, Sep 25, 2026)
+## Where the data lives
 
-**The dataset stays on the collaborator's own machine, and nowhere else, until the team explicitly decides otherwise.** That means `~/ehrshot-data/` (or wherever your own `EHRSHOT_DATA_ROOT` points) on a machine you control — no Google Drive, no Colab upload (chunked or otherwise), no Redivis export, no S3, no shared folder. Every notebook runs locally via `scripts/local_setup.py`; Project 1 needs nothing more (the largest graphs have ~7,000 nodes -- one per admission, not per patient).
+On your own computer, and nowhere else. No Google Drive (not even temporarily), no Colab, no shared folders, no cloud uploads.
 
-**GitHub holds code and aggregate results only.** Concretely, the only things that leave the machine are:
-- source code, tests, and notebooks **with outputs stripped** (`nbstripout` runs in pre-commit and CI's `notebook-lint` re-checks it — printed outputs can quietly contain patient IDs, so they never get committed);
-- summary tables in `results/aggregate/*.csv` (one row per metric, never one row per patient);
-- figures in `results/aggregate/figures/` built only from those summaries (distributions, bar charts, anonymous network layouts — no patient IDs, no labels on individual nodes).
-- **executed notebooks** in `notebooks/executed/` (outputs kept, team decision Oct 2, 2026), so team members without CLMBR access or the compute can read every result without running anything. They are published **only** through `scripts/publish_executed.py`, which checks every output against the real patient IDs and prediction times on the publishing machine and refuses anything that matches. CI re-scans them on every pull request without data: no ID-shaped numbers, no patient-level columns, no tables over 100 rows, no prediction-time timestamps, at most 5 MB each.
+## What can leave your computer
 
-`scripts/colab_setup.py` and `scripts/dismantle_data.py` are still in the repo and still tested, but they are **not to be used** under this policy — they exist only in case the team later reverses the decision (issue #23 tracks Redivis as the only option Stanford actually recommended for cloud compute).
+- Code, tests, and notebooks **with outputs stripped**.
+- Summary tables in `results/aggregate/` (one row per metric, never one row per patient).
+- Figures built only from those summaries.
+- Finished notebook copies in `notebooks/executed/`, **only** through `scripts/publish_executed.py`. That script checks every output against the real patient IDs before saving. CI checks them again.
 
-**RESOLVED, Sep 20, 2026 — Google Drive is explicitly disallowed. This is confirmed, not a judgment call.** Stanford's data stewards (shahlab-contact@stanford.edu) replied to the question sent earlier the same day: *"Generally only institution-level Google Drive setups (e.g., Stanford's) which explicitly include citable, documented guidance on protocols for storing high-risk data are permitted. The general rule is to not store the data in Google Drive, since it doesn't meet our explicit requirements around security."* This supersedes every earlier Drive-related risk analysis in this file's history (all now void) — a personal or team Google Drive, brief pass-through or persistent, does not meet Stanford's bar. **Any standing copy in Drive must be deleted immediately, Trash emptied too** (Drive's delete only moves to Trash by default).
+## Small groups
 
-## Two data sources, and who needs which (team decision, Oct 2, 2026)
+Don't publish any subgroup smaller than about 20 patients. A tiny cell (for example, "3 patients, 2 positive") can identify someone. Check any demographic table by hand before it goes public.
 
-| Source | What it holds | Who needs it |
-|---|---|---|
-| **Course OMOP tables** (the class's Redivis release: `person`, `visit_occurrence`, `condition_occurrence`, ..., `concept_ancestor`) | Patients, visits, diagnoses (with standard SNOMED concepts and original billing codes), vocabulary | **Everyone.** All Project 1 results are built from these, with outcome labels rebuilt from EHRSHOT's published definitions (`ehrgraph.data.omop_labels`). |
-| **Stanford's full EHRSHOT release** (`EHRSHOT_ASSETS`) | CLMBR fingerprints, official labels and splits, published benchmark scores | **Optional for Project 1:** without it only the baseline check (notebook 01) and Dirichlet energy are skipped. **Required for Project 2**, whose models take CLMBR fingerprints as input. |
+## How a public site or paper stays safe
 
-Point the code at your copies with `EHRSHOT_TRIMMED_ROOT` (course tables; default `~/ehrshot-data/trimmed`) and `EHRSHOT_DATA_ROOT` (full release; default `~/ehrshot-data`). Each person needs **their own** approved access to each source they use. **CLMBR fingerprints and label files are patient-level: never send them to a teammate**, even one who is on the project. A teammate without the full release should request it through their own Redivis account.
+1. `results/aggregate/` is the only thing public pages read. It holds summaries, never one row per patient. `write_aggregate` refuses patient-identifying columns.
+2. `results/per_patient/` is gitignored completely.
+3. The site is built without access to the data, so it can't read patient-level data, even by accident.
+4. GitHub Pages sites are public even when the repo is private. The safety comes from points 1 to 3, not from repo privacy.
 
-## What must never happen
-
-- No raw data file, and nothing derived from it that could re-identify or expose patient-level records, may ever be committed to this repository or published on the project's static site — **regardless of repository visibility**. GitHub Pages sites are publicly reachable even when the source repository is private; repo privacy is not a safeguard for anything published to Pages.
-- **No collaborator may upload the data to Google Drive, under any circumstances — confirmed disallowed by Stanford, Sep 20, 2026.** This is no longer a judgment call to make independently.
-- No collaborator may upload the data to any other third-party cloud service (S3, a Colab session's persistent/mounted storage, etc.) without checking it against the DUA first.
-- **If compute moves to Redivis (see issue #23): only aggregate outputs — no per-patient rows — may ever be exported out of it.** Same rule as everywhere else in this file, extended to a new environment. The patient-similarity graph, per-patient embeddings/vectors, and per-patient predictions must stay inside Redivis; only summary tables matching the `results/aggregate/` schema (AUROC/AUPRC, homophily numbers, degree distributions, centrality stats, and figures built from those) leave. See `PROJECT_GUIDE.md`, Module H, for the full pipeline and where each stage runs.
-- Nothing under `data/` other than `README.md` and `checksums.txt` may be tracked by git, ever.
-
-Questions about access or terms: ask the team's Infra Lead before proceeding, not after.
-
-## How a public site or paper stays safe when the data never leaves your laptop
-
-This is the actual mechanism, not just a promise:
-
-1. **`results/aggregate/` is the only thing anything public reads.** It holds summary statistics (AUROC tables, homophily numbers, degree distributions) and never one row per patient. `write_aggregate` refuses patient-identifying columns, and `tests/test_results_schema.py` re-checks every committed file.
-2. **`results/per_patient/` is gitignored completely.** Anything with one row per patient stays local, and CI fails the build if it is ever staged.
-3. **The eventual project site will read only `results/aggregate/*.csv`.** It can be built in GitHub Actions on a machine that has no access to the data at all. If a page ever tried to read patient-level data, the build would fail because the data isn't there.
-4. **GitHub Pages sites are public even when the repository is private.** Repo privacy protects the code and the process, not anything published to Pages. The site's safety comes from points 1–3. Keeping the repo private for now gives us room to fix a mistake before anything has been cloned.
-
-**Small subgroups:** once results are broken down by sex or ethnicity, don't publish a subgroup cell smaller than about 10–20 patients. A tiny cell (e.g. "3 patients, 2 positive") is technically aggregate but can still identify someone in a small cohort. Check any demographic table by hand before it goes public.
+Questions about access or these rules? Ask the team before going ahead, not after.
