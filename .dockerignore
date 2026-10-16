@@ -1,0 +1,17 @@
+# Never send data to the image build. The container gets data/omop as a
+# read-only mount at run time instead.
+data/
+!data/README.md
+
+.git/
+.venv/
+**/__pycache__/
+**/.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+r-viz/renv/library/
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
