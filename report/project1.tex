@@ -1,4 +1,4 @@
-% DRAFT -- numbers checked against results/aggregate/*.csv, Oct 16 2026
+% Numbers checked against results/aggregate/*.csv (Oct 16 2026). Build: make report
 \documentclass[11pt]{article}
 
 \usepackage[margin=1in]{geometry}
@@ -10,19 +10,18 @@
 
 \graphicspath{{../results/aggregate/figures/}}
 
-\title{Uncovering Clinical Patterns in Patient Networks Built from EHRShot:\\
-Structure, Communities, and Information Leakage}
-% TODO: replace with team member names
-\author{Team patient-graph-lab\\
-CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs\\
-University of South Florida, Fall 2026 --- Project 1}
-\date{October 2026}
+\title{Similar Patients, Shared Outcomes:\\
+A Network Analysis of Patient Similarity and Information Leakage in EHRSHOT}
+\author{Sanjay Malla \and Quade Leonard \and Ean Stedham}
+\date{CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs\\
+University of South Florida, Fall 2026 --- Project 1\\[4pt]
+October 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We turn electronic health records (EHRs) from the EHRShot dataset into networks and study them with classical social network analysis, without any machine learning. Each node is one hospital stay at the moment a prediction would be made, and two stays are linked when their diagnosis histories are very similar. We ask two clinical questions: will the stay last a week or more (\emph{long stay}), and will the patient receive a first diagnosis of high blood pressure within a year (\emph{new hypertension})? For each question we build three networks: an \emph{honest} one that only uses diagnoses recorded before the prediction time, a \emph{cheating} one that uses the whole record including the future, and a \emph{random} one with the same number of links per node. Honest networks are highly clustered and split into tight communities whose members tend to share the same outcome far more than chance (homophily 0.21 and 0.23, against about 0.01 in random networks). Using future information barely changes the long-stay network, but it clearly changes the hypertension network, because the future record contains the very diagnosis we want to predict. A separate disease-trajectory network recovers recognisable families of conditions such as heart failure and sepsis. Along the way, network analysis revealed three hidden artifacts---a split between old and new billing codes, many links between stays of the same patient, and a labeling quirk---before any model was trained.
+We represent electronic health records (EHRs) from Stanford's EHRSHOT dataset as networks and study them with classical social network analysis, without machine learning. Each node is one hospital stay, and two stays are linked when their diagnosis histories are very similar. We ask two clinical questions: will the stay last a week or more, and will the patient be newly diagnosed with high blood pressure within a year? For each question we compare an \emph{honest} network, built only from diagnoses known before the prediction time, with a \emph{cheating} network that also sees the future, and a \emph{random} network with the same number of links per node. Honest networks are highly clustered, split into strong communities, and linked stays share outcomes far more than chance (homophily 0.21 and 0.23, against about 0.01 at random). Seeing the future barely changes the long-stay network, but clearly changes the blood-pressure network, because the future record contains the very diagnosis we want to predict. A separate disease-trajectory network recovers recognisable families of conditions such as heart failure and sepsis. Network analysis also exposed hidden data artifacts, such as a split between old and new billing codes, before any model was trained.
 \end{abstract}
 
 \section{Introduction}
@@ -31,14 +30,12 @@ Hospitals record every diagnosis, visit, and procedure in an electronic health r
 
 Our main question is: \emph{are patient networks built from past diagnoses organised around clinical outcomes, and what structure do they reveal?} A second question runs through the whole report: \emph{what happens when the network accidentally uses information from the future?} This problem is called \emph{information leakage}. If we build a network using diagnoses that were recorded after the moment we are trying to predict, the network may look very informative only because it has already seen the answer. Leakage is a common and serious mistake in medical machine learning, because it makes methods look better on paper than they could ever be in a real hospital. Since Project~2 will train graph neural networks on these same networks, we want to understand leakage now, with simple and transparent tools.
 
-The report is organised as follows. Section~\ref{sec:data} describes the data and the two prediction questions. Section~\ref{sec:methods} explains how we build networks and which measures we use. Section~\ref{sec:results} presents the results, Section~\ref{sec:discussion} discusses them and their limitations, and Section~\ref{sec:conclusion} concludes and links to Project~2.
-
 \section{Data}
 \label{sec:data}
 
-\subsection{EHRShot and the OMOP format}
+\subsection{EHRSHOT and the OMOP format}
 
-EHRShot is a de-identified EHR dataset released by Stanford together with a benchmark of clinical prediction tasks~\cite{wornow2023ehrshot}. We use the course release, which contains 13 tables in the OMOP Common Data Model (OMOP-CDM). OMOP-CDM is a shared database layout maintained by the OHDSI community~\cite{hripcsak2015ohdsi}: every hospital stores patients, visits, diagnoses, drugs, and measurements in the same tables with the same columns, so that analyses can be reused across hospitals. The release covers 6,731 patients, 944,132 visits, and 2,570,607 diagnosis records.
+EHRSHOT is a de-identified EHR dataset released by Stanford together with a benchmark of clinical prediction tasks~\cite{wornow2023ehrshot}. We use the course release, which contains 13 tables in the OMOP Common Data Model (OMOP-CDM). OMOP-CDM is a shared database layout maintained by the OHDSI community~\cite{hripcsak2015ohdsi}: every hospital stores patients, visits, diagnoses, drugs, and measurements in the same tables with the same columns, so that analyses can be reused across hospitals. The release covers 6,731 patients, 944,132 visits, and 2,570,607 diagnosis records.
 
 \subsection{Two prediction questions}
 
@@ -256,7 +253,7 @@ Some small pairs are the same condition coded two ways, such as ``vomiting'' and
 
 \subsection{Spreading and spectral partitioning}
 
-In the SIR model on the long-stay networks, the share of stays ever infected after 10 steps is 0.29 on the honest network, 0.14 on the cheating network, and 0.87 on the random network (Figure~\ref{fig:sir}). For hypertension the numbers are 0.50, 0.31, and 0.90. Clustering and long paths trap the spread inside local groups; the random network, with short paths and almost no triangles, lets it reach nearly everyone.
+In the SIR model on the long-stay networks, the share of stays ever infected after 10 steps is 0.27 on the honest network, 0.13 on the cheating network, and 0.87 on the random network (Figure~\ref{fig:sir}). For high blood pressure the numbers are 0.47, 0.31, and 0.90. Clustering and long paths trap the spread inside local groups; the random network, with short paths and almost no triangles, lets it reach nearly everyone.
 
 \begin{figure}[!htbp]
 \centering
@@ -298,7 +295,7 @@ Spectral partitioning into 10 groups on the honest long-stay network reaches mod
 \section{Conclusion and next steps}
 \label{sec:conclusion}
 
-Classical network analysis on EHRShot shows that honest patient networks carry real outcome structure, that leakage depends on whether the outcome itself appears in the future record, and that simple measures can expose data artifacts early. Table~\ref{tab:goals} maps the four Project~1 goals to the sections of this report.
+Classical network analysis on EHRSHOT shows that honest patient networks carry real outcome structure, that leakage depends on whether the outcome itself appears in the future record, and that simple measures can expose data artifacts early. Table~\ref{tab:goals} maps the four Project~1 goals to the sections of this report.
 
 \begin{table}[ht]
 \centering
@@ -318,7 +315,7 @@ Project 1 goal & Where it is addressed \\
 
 \paragraph{Project 2.} The next project will ask whether honest patient networks improve \emph{few-shot} predictions, that is, predictions trained on only a handful of labelled examples, as in the EHRSHOT benchmark~\cite{wornow2023ehrshot}. We will compare graph neural networks and label propagation on the honest networks against models that ignore the graph, keeping the cheating networks only as a leakage check and handling same-patient links explicitly.
 
-\paragraph{Reproducibility.} All analyses are in a repository with notebooks 01--06; executed copies are stored in \texttt{notebooks/executed/}. Everything runs on a laptop in minutes. Only aggregate results (tables and figures) leave the machine; patient-level data stay local under Stanford's data use agreement.
+\paragraph{Reproducibility.} All code, notebooks, and aggregate results are in our course repository. A Docker check rebuilds a clean environment, re-runs every notebook from scratch, and confirms that the results in this report are reproduced. Patient-level data never leave our own machines, as required by the EHRSHOT data use agreement.
 
 \bibliographystyle{plain}
 \bibliography{references}

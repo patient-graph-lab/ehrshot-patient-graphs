@@ -1,9 +1,11 @@
-# Patient Graphs: does knowing "similar patients" help an AI predict health outcomes?
+# Similar Patients, Shared Outcomes
+
+*Patient similarity networks and information leakage in EHRSHOT. By Sanjay Malla, Quade Leonard and Ean Stedham.*
 
 ![CI](https://github.com/patient-graph-lab/ehrshot-patient-graphs/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-A student research project from the University of South Florida (CIS 4930 / CAI 5155, *Network Analysis and Machine Learning with Graphs*, Fall 2026). Welcome, and thanks for stopping by. You don't need a background in medicine or machine learning to follow along.
+Does knowing "similar patients" help an AI predict health outcomes? A student research project from the University of South Florida (CIS 4930 / CAI 5155, *Network Analysis and Machine Learning with Graphs*, Fall 2026). Welcome, and thanks for stopping by. You don't need a background in medicine or machine learning to follow along.
 
 ## The idea in one minute
 

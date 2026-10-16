@@ -1,10 +1,16 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "Leakage-Safe Patient Graphs for Few-Shot Clinical Prediction"
+title: "Similar Patients, Shared Outcomes: Patient Similarity Networks and Information Leakage in EHRSHOT"
 type: software
 authors:
-  - family-names: "TODO"
-    given-names: "TODO"
+  - family-names: "Malla"
+    given-names: "Sanjay"
+    affiliation: "University of South Florida"
+  - family-names: "Leonard"
+    given-names: "Quade"
+    affiliation: "University of South Florida"
+  - family-names: "Stedham"
+    given-names: "Ean"
     affiliation: "University of South Florida"
 repository-code: "https://github.com/patient-graph-lab/ehrshot-patient-graphs"
 license: Apache-2.0
