@@ -1,0 +1,9 @@
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+Networks of similar patients built from EHRSHOT carry real outcome structure: stays that look alike in their history tend to share outcomes, and the network's communities differ widely in outcome rates. Whether information from the future distorts these networks depends on whether the outcome itself appears in the future record. It does for a new diagnosis such as high blood pressure, and it does not for length of stay. Along the way, simple network measures exposed data problems early, before they could affect a model.
+
+Our next step is to test whether honest patient networks actually improve predictions when only a handful of labelled examples are available, the \emph{few-shot} setting of the EHRSHOT benchmark~\cite{wornow2023ehrshot}. We will compare graph neural networks and label propagation on the honest networks against methods that ignore the network, use the cheating networks only as a leakage check, and handle connections between stays of the same patient explicitly.
+
+\paragraph{Code and reproducibility.}\sloppy\ All code, analysis notebooks, and summary results are available at
+\begin{center}\url{https://github.com/patient-graph-lab/ehrshot-patient-graphs}\end{center} To reproduce the analysis, install the Python environment with \texttt{uv sync}, place the course's EHRSHOT tables in \texttt{data/omop/}, and run the six notebooks in order. Alternatively, \texttt{make docker-check} runs everything in a clean container and confirms that the results in this report are reproduced. Patient-level data never leave our own machines, as required by the dataset's terms of use.

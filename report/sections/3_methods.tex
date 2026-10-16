@@ -1,0 +1,23 @@
+\section{Methods}
+\label{sec:methods}
+
+\paragraph{Building a network of stays.} For each stay we list which standardised diagnoses appear in the patient's record. We weight each diagnosis so that very common ones (which almost everyone has) count little and rare, specific ones count more; this is the TF-IDF weighting used in text search. Two stays are then compared with cosine similarity, which is 1 for identical diagnosis profiles and 0 for profiles with nothing in common. We connect two stays when each is among the other's 10 most similar stays.
+
+\paragraph{Honest, cheating, and random networks.} For each question we build three networks with the same recipe:
+\begin{itemize}
+  \item \textbf{Honest:} only diagnoses recorded before the prediction time, which is all a real hospital could know.
+  \item \textbf{Cheating:} the whole patient record, including diagnoses made after the prediction time. This deliberately introduces leakage. A cheating profile has about twice as many diagnoses as an honest one (97 against 48 on average for long stay).
+  \item \textbf{Random:} the honest network with its connections randomly rearranged, while every stay keeps the same number of connections. We repeat this 10 times and report the average.
+\end{itemize}
+The random network tells us what to expect from the number of connections alone, so differences between the honest and random networks are structure that comes from the diagnoses.
+
+\paragraph{What we measure.}
+\begin{itemize}
+  \item \textbf{Triangle rate} (transitivity): of all pairs of a stay's neighbours, the share that are also connected to each other.
+  \item \textbf{Average path length}: the average number of steps between two stays in the largest connected group.
+  \item \textbf{Communities}: groups of stays with many connections inside and few outside, found with the Leiden algorithm~\cite{traag2019louvain}, an improved version of Louvain~\cite{blondel2008fast}. \emph{Modularity} scores how clearly the groups are separated (above about 0.3 is clear).
+  \item \textbf{Homophily}: whether connected stays share the same outcome more often than expected from how common each outcome is~\cite{lim2021large}. It is 0 when connections ignore the outcome and 1 when every connection joins stays with the same outcome.
+  \item \textbf{Explained by communities}: the share of the variation in outcomes that is explained by which community a stay belongs to (0 means every community has the same outcome rate).
+\end{itemize}
+
+\paragraph{A network of diagnoses.} We also build a second kind of network, in which the nodes are the 200 most common diagnoses. We connect diagnosis A to diagnosis B when patients with A receive B within the following year more often than patients in general receive B. A connection is kept only if at least 10 patients show the pattern and it passes a strict significance test that accounts for the roughly 40,000 pairs tested. We then split this network into groups with the Girvan--Newman method~\cite{girvan2002community}, which repeatedly removes the connection that most acts as a bridge between groups, producing a tree of splits.

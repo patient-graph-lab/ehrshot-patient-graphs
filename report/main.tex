@@ -1,0 +1,39 @@
+% Similar Patients, Shared Outcomes -- CIS 4930 / CAI 5155 Project 1 report.
+%
+% Each section lives in sections/. Figures are read from figures/ (Overleaf
+% upload, made by `make overleaf`) or straight from the repo's results folder.
+% Every number was checked against results/aggregate/*.csv on Oct 16 2026.
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage[section]{placeins}
+\usepackage{hyperref}
+
+\graphicspath{{figures/}{../results/aggregate/figures/}}
+
+\title{Similar Patients, Shared Outcomes:\\
+A Network Analysis of Patient Similarity and Information Leakage in EHRSHOT}
+\author{Sanjay Malla \and Quade Leonard \and Ean Stedham}
+\date{CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs\\
+University of South Florida, Fall 2026\\[4pt]
+October 2026}
+
+\begin{document}
+\maketitle
+
+\input{sections/abstract}
+
+\input{sections/1_introduction}
+\input{sections/2_data}
+\input{sections/3_methods}
+\input{sections/4_results}
+\input{sections/5_discussion}
+\input{sections/6_conclusion}
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

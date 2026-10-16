@@ -73,5 +73,7 @@ report/*.blg
 report/*.log
 report/*.out
 report/*.pdf
+report/overleaf.zip
+report/figures/
 report/*.fls
 report/*.fdb_latexmk

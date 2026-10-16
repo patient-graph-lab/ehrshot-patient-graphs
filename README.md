@@ -21,7 +21,7 @@ Main findings:
 
 ![Honest, cheating and random networks for long hospital stays](results/aggregate/figures/02_network_pictures.png)
 
-The full write-up is in [`report/project1.tex`](report/project1.tex). Finished notebooks with all outputs are in [`notebooks/executed/`](notebooks/executed/), and you can read them on GitHub without installing anything.
+The full write-up is in [`report/`](report/) (start at [`main.tex`](report/main.tex); each section is in `report/sections/`). Finished notebooks with all outputs are in [`notebooks/executed/`](notebooks/executed/), and you can read them on GitHub without installing anything.
 
 ## Setup
 
@@ -33,6 +33,16 @@ This branch (`trimmed-dataset`) uses only the course's trimmed OMOP dataset.
 - your own approved copy of the course dataset (`ehrshot.zip`).
 
 **Optional:** Docker, and a LaTeX installation if you want to build the report PDF.
+
+### Quick setup
+
+```bash
+git clone https://github.com/patient-graph-lab/ehrshot-patient-graphs.git
+cd ehrshot-patient-graphs
+./setup.sh ~/Downloads/ehrshot.zip            # add --docker and/or --report for the extras below
+```
+
+`setup.sh` does steps 1, 2 and 4 below for you: it creates the environment, unzips the data and runs the tests. Every step is commented in the script, and running it again is safe. The steps below do the same thing by hand.
 
 ### 1. Install
 
@@ -84,8 +94,11 @@ make docker-check        # full run in a clean container
 ### 5. Build the report
 
 ```bash
-make report              # writes report/project1.pdf
+make report              # writes report/main.pdf
+make overleaf            # writes report/overleaf.zip for Overleaf
 ```
+
+To edit the report on Overleaf, run `make overleaf`, then in Overleaf choose *New Project > Upload Project* and select `report/overleaf.zip`. The zip contains `main.tex`, the section files, the bibliography and all figures.
 
 ## Repository layout
 
