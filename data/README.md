@@ -1,8 +1,14 @@
-# data/
+# Data folder
 
 This folder is for local data only. Nothing in here gets committed.
 
-Put the professor's course CSV files in `data/omop/`. You need at least:
+Unzip the course dataset into `data/omop/`:
+
+```bash
+unzip ~/Downloads/ehrshot.zip -x '__MACOSX/*' -d data/omop
+```
+
+The notebooks need at least:
 
 - `person.csv`
 - `visit_occurrence.csv`

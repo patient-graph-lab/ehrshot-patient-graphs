@@ -1,38 +1,25 @@
-# Data Access
+# Data access
 
-This repo has **no patient data**, not even in small pieces. Only code, summary numbers, and charts. `.gitignore`, pre-commit hooks, and a CI check (`data-guard`) enforce this on every pull request.
+This repository contains no patient data: only code, summary numbers and figures. `.gitignore`, pre-commit hooks and the `data-guard` CI check enforce this.
 
-## What we use
+## The dataset
 
-- **The course dataset:** the professor's trimmed OMOP tables (a zip of CSV files). Everyone on the team uses only this.
-- **EHRSHOT** (Wornow et al., NeurIPS 2023 Datasets & Benchmarks, [arXiv:2307.02028](https://arxiv.org/abs/2307.02028)): a de-identified EHR benchmark from Stanford. Our outcome definitions come from it.
+We use the course's trimmed OMOP tables, a subset of Stanford's EHRSHOT dataset (Wornow et al., NeurIPS 2023, [arXiv:2307.02028](https://arxiv.org/abs/2307.02028)). Our outcome definitions follow the EHRSHOT benchmark.
 
-## Getting your own access
+## Rules
 
-1. Get your own approved access to the course data through the course's access process. Each person needs their own.
-2. Never share your copy with a teammate, even someone on this project. Repo access doesn't give anyone rights to the data.
-3. Put the CSV files in `data/omop/` inside the repo. That folder is gitignored.
+1. **Get your own access.** Each team member needs their own approved copy through the course. Repository access does not give anyone rights to the data.
+2. **Never share data files**, not even with teammates.
+3. **Keep the data on your own computer**, in `data/omop/` (gitignored). No cloud drives, Colab or shared folders.
+4. **Publish summaries only.** Only these may be committed:
+   - code;
+   - notebooks with outputs stripped;
+   - summary tables in `results/aggregate/` (one row per measurement, never one row per patient);
+   - figures made from those summaries.
+5. **No small groups.** Don't publish any group of fewer than about 20 patients.
 
-## Where the data lives
+## Executed notebooks
 
-On your own computer, and nowhere else. No Google Drive (not even temporarily), no Colab, no shared folders, no cloud uploads.
+Copies with outputs live in `notebooks/executed/`. They are added only through `scripts/publish_executed.py`. That script checks every output against the real patient IDs on your machine and removes local paths before saving. CI runs the same scan again on every pull request.
 
-## What can leave your computer
-
-- Code, tests, and notebooks **with outputs stripped**.
-- Summary tables in `results/aggregate/` (one row per metric, never one row per patient).
-- Figures built only from those summaries.
-- Finished notebook copies in `notebooks/executed/`, **only** through `scripts/publish_executed.py`. That script checks every output against the real patient IDs before saving. CI checks them again.
-
-## Small groups
-
-Don't publish any subgroup smaller than about 20 patients. A tiny cell (for example, "3 patients, 2 positive") can identify someone. Check any demographic table by hand before it goes public.
-
-## How a public site or paper stays safe
-
-1. `results/aggregate/` is the only thing public pages read. It holds summaries, never one row per patient. `write_aggregate` refuses patient-identifying columns.
-2. `results/per_patient/` is gitignored completely.
-3. The site is built without access to the data, so it can't read patient-level data, even by accident.
-4. GitHub Pages sites are public even when the repo is private. The safety comes from points 1 to 3, not from repo privacy.
-
-Questions about access or these rules? Ask the team before going ahead, not after.
+Questions about these rules? Ask the team before going ahead.

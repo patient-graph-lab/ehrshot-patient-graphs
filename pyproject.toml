@@ -1,7 +1,7 @@
 [project]
 name = "ehrgraph"
 version = "0.1.0"
-description = "Leakage-safe patient graphs for few-shot clinical prediction on EHRSHOT"
+description = "Similar Patients, Shared Outcomes: patient similarity networks and information leakage in EHRSHOT"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 readme = "README.md"
@@ -18,7 +18,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-data = ["meds_reader"]
 gnn = ["torch", "torch_geometric"]
 dev = ["ruff", "pytest", "pre-commit", "nbstripout", "jupyter", "ipykernel"]
 

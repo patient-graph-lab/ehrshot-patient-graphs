@@ -1,134 +1,114 @@
 # Similar Patients, Shared Outcomes
 
-*Patient similarity networks and information leakage in EHRSHOT. By Sanjay Malla, Quade Leonard and Ean Stedham.*
+Patient similarity networks and information leakage in EHRSHOT.
 
-![CI](https://github.com/patient-graph-lab/ehrshot-patient-graphs/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+Sanjay Malla, Quade Leonard, Ean Stedham. CIS 4930 / CAI 5155 Network Analysis and Machine Learning with Graphs, University of South Florida, Fall 2026.
 
-Does knowing "similar patients" help an AI predict health outcomes? A student research project from the University of South Florida (CIS 4930 / CAI 5155, *Network Analysis and Machine Learning with Graphs*, Fall 2026). Welcome, and thanks for stopping by. You don't need a background in medicine or machine learning to follow along.
+![CI](https://github.com/patient-graph-lab/ehrshot-patient-graphs/actions/workflows/ci.yml/badge.svg?branch=trimmed-dataset)
 
-## The idea in one minute
+## Overview
 
-Hospitals would love to predict things like *"will this patient need a long stay?"* or *"will this patient develop high blood pressure in the next year?"*. The hard part is that there are often only a handful of past examples to learn from.
+We turn hospital records from Stanford's EHRSHOT dataset into networks. Each node is a hospital stay, and two stays are linked when the patients' diagnosis histories are very similar. We then use classical network analysis to answer two questions:
 
-Our idea is the same trick a movie app uses: **if people similar to you liked a film, you probably will too.** We connect each patient to the patients with the most similar medical histories, forming a network, and ask whether those neighbors help an AI model make better predictions.
+1. **Do linked stays share outcomes?** We look at two outcomes: a hospital stay of 7 days or more, and a new diagnosis of high blood pressure within a year.
+2. **What happens if the network accidentally uses information from the future?** This mistake is called *information leakage*. We compare an *honest* network (only diagnoses known at prediction time), a *cheating* network (the full record, future included) and a *random* network.
 
-There's a catch, and it's what this project is really about. If a link between two patients was built using information from **after** the moment we're predicting, the model looks smarter than it is: it's peeking at the answer key. So we build every network three ways and compare them:
+Main findings:
 
-| Network | Built from | Why we build it |
-|---|---|---|
-| 🟦 **Honest** | Only what was known *at the time* | The version you could really use |
-| 🟧 **Cheating** | The patient's *whole* record, future included | To measure how much peeking inflates results |
-| 🟩 **Random** | The honest network, shuffled | To see what "no real pattern" looks like |
+- Honest networks are tightly clustered, and linked stays share outcomes far more often than chance.
+- Leakage depends on the question. It barely changes the long-stay network. For high blood pressure, the future record contains the diagnosis itself, so the cheating network looks better than it should.
+- A disease-to-disease network recovers recognisable groups of conditions, such as heart failure, sepsis and respiratory failure.
 
-## What we've found so far
+![Honest, cheating and random networks for long hospital stays](results/aggregate/figures/02_network_pictures.png)
 
-- **Similar patients really do tend to share outcomes,** far more than chance in every version we tested.
-- **Whether cheating helps depends on the question.** For *long hospital stays*, peeking at the future barely changes the network. For *new high blood pressure*, the future record literally contains the diagnosis, and the cheating network looks noticeably better. That's exactly the trap we set out to measure.
-- **Network analysis caught hidden quirks in the data,** including a split caused by the 2015 change in medical billing codes, before any AI model was trained.
+The full write-up is in [`report/project1.tex`](report/project1.tex). Finished notebooks with all outputs are in [`notebooks/executed/`](notebooks/executed/), and you can read them on GitHub without installing anything.
 
-Project 1 (network analysis) is due Oct 23, 2026. Project 2, which tests whether the honest networks actually improve predictions, is due Dec 4, 2026.
+## Setup
 
-## Have a look around (no setup needed)
+This branch (`trimmed-dataset`) uses only the course's trimmed OMOP dataset.
 
-| I want to... | Go here |
-|---|---|
-| See the results, with every table and figure | [`notebooks/executed/`](notebooks/executed/): finished notebooks, GitHub shows them directly |
-| Just look at the charts | [`results/aggregate/figures/`](results/aggregate/figures/) |
-| Read the summary numbers | [`results/aggregate/`](results/aggregate/) (one small CSV per analysis) |
-| Read the report draft | [`report/`](report/) (LaTeX) |
-| Walk through the analysis | [`notebooks/`](notebooks/): six notebooks, `01` to `06`. Start with `01` |
-| Follow what we did, step by step | [`docs/progress-log.md`](docs/progress-log.md) |
-| Understand the data rules | [`DATA_ACCESS.md`](DATA_ACCESS.md) |
+**Requirements:**
+- Python 3.10 or newer;
+- [uv](https://docs.astral.sh/uv/);
+- your own approved copy of the course dataset (`ehrshot.zip`).
 
-<details>
-<summary><b>A few words you'll see around the repo</b></summary>
+**Optional:** Docker, and a LaTeX installation if you want to build the report PDF.
 
-- **EHRSHOT**: a public research dataset from Stanford with the anonymized medical records of about 6,700 patients. Our outcome definitions come from it.
-- **Few-shot**: learning from very few examples (as few as 1 to 128).
-- **Homophily**: how much connected patients share the same outcome. 0 means no more than chance.
-- **Leakage**: future information sneaking into a prediction, i.e. the "peeking" above.
-- **OMOP tables**: the standard spreadsheet-like format the medical records come in.
-
-</details>
-
-## Run it yourself
-
-You'll need the course data first (see the next section). Then:
-
-**1. Install.** You need [uv](https://docs.astral.sh/uv/). Then:
+### 1. Install
 
 ```bash
 git clone https://github.com/patient-graph-lab/ehrshot-patient-graphs.git
 cd ehrshot-patient-graphs
 uv sync --extra dev
-uv run pre-commit install        # safety checks that run before each commit
+uv run pre-commit install
 ```
 
-**2. Put the data in place.** Unzip the professor's dataset straight into `data/omop/`:
+### 2. Add the data
+
+Unzip the course dataset into `data/omop/`:
 
 ```bash
-unzip ~/Downloads/ehrshot.zip -d data/omop   # use wherever you saved the zip
+unzip ~/Downloads/ehrshot.zip -x '__MACOSX/*' -d data/omop
 ```
 
-That's the whole data setup. That folder is gitignored, so the data can never get committed. You need at least `person.csv`, `visit_occurrence.csv`, `condition_occurrence.csv`, and `concept_ancestor.csv`. The other course CSVs can sit there too.
+The notebooks need `person.csv`, `visit_occurrence.csv`, `condition_occurrence.csv` and `concept_ancestor.csv`. The folder is gitignored, so the data cannot be committed. If you keep the data somewhere else, set `EHRSHOT_TRIMMED_ROOT` to that folder.
 
-**3. Open a notebook** (`uv run jupyter lab`, or VS Code) and run it top to bottom. Start with **01**. Every notebook begins with these two lines, and they find the data for you:
+### 3. Run the notebooks
 
-```python
-from ehrgraph.project import setup
-p = setup()
+```bash
+uv run jupyter lab
 ```
 
-If your data lives somewhere else, set `EHRSHOT_TRIMMED_ROOT` to that folder first.
+Open the notebooks in `notebooks/` and run them in order, `01` to `06`. Together they take about 10 minutes.
 
-**4. Check everything works** any time with `uv run pytest`. The tests use made-up data, so they run without the real dataset.
+| Notebook | Contents |
+|---|---|
+| `01_data_and_labels` | The data, the two outcomes, and the ICD-9 to ICD-10 switch in 2015 |
+| `02_long_stay_networks` | Honest, cheating and random networks for long stays |
+| `03_high_blood_pressure_networks` | The same for new high blood pressure |
+| `04_disease_trajectories` | Which diseases tend to follow which, and how they group |
+| `05_spreading_and_partitioning` | SIR spreading, cascades, and spectral partitioning |
+| `06_wrap_up` | Both outcomes side by side, plus robustness checks |
 
-Most notebooks finish in a few minutes on an ordinary laptop.
+Results are written to `results/aggregate/` (summary CSVs) and `results/aggregate/figures/`.
 
-**Or let Docker do all of it.** With [Docker](https://docs.docker.com/get-docker/) installed and the data in `data/omop/`, run `make docker-check`. This builds a clean machine with the exact locked packages, runs the tests, runs notebooks 01 to 06 from scratch, and checks that the fresh results match the committed ones. The data is mounted read-only, never copied into the image, and the container has no network. Your data lives somewhere else? Use `make docker-check DATA=/path/to/folder`. Using Podman? Add `DOCKER=podman`.
+### 4. Check that everything reproduces
 
-Don't want to run anything? Read the finished notebooks in [`notebooks/executed/`](notebooks/executed/) and the charts in [`results/aggregate/figures/`](results/aggregate/figures/).
-
-## About the data (please read)
-
-The data is the professor's course dataset, and it is private. So **this repository contains no patient data at all**: only code, summary numbers, and charts. Three rules keep it that way:
-
-- **No patient data in the repo, ever.** Only code, summary numbers, and charts get committed.
-- **Get your own access, and never send data files to anyone.** Each person requests their own approved access. That includes teammates.
-- **The data stays on your own computer.** No Google Drive, Colab, or other cloud uploads.
-
-Notebooks are saved without their outputs, and finished copies are privacy-checked before they go on GitHub. Full rules are in [`DATA_ACCESS.md`](DATA_ACCESS.md).
-
-Stanford's full release and its CLMBR measures are not part of Project 1. Project 2 may revisit them.
-
-## How the repo is organized
-
-```
-data/omop/          the professor's CSV files go here (gitignored, never committed)
-notebooks/          the six analysis notebooks, 01 to 06
-  executed/         the same notebooks with all outputs, ready to read
-src/ehrgraph/       the project's Python code
-  project.py        setup(): finds the data for you
-  data/             reading the medical records and building outcome labels
-  graphs/           turning patients into networks (honest, cheating, random)
-  netstats/         measuring the networks: groups, central patients, homophily
-  eval/             baseline checks, label helpers, and safety checks for anything we publish
-  viz/              the charts
-report/             the LaTeX draft of the report
-results/aggregate/  summary numbers (CSV) and figures; the only results we publish
-tests/              automated tests, all on made-up data
-docs/               the progress log and the results file format
-scripts/            setup and publishing helpers
-r-viz/              optional R scripts for report figures
+```bash
+uv run pytest            # unit tests on synthetic data, no dataset needed
+make docker-check        # full run in a clean container
 ```
 
-## Working on the project
+`make docker-check` builds a clean container, runs the tests and all six notebooks, and confirms the results match the committed ones. The data is mounted read-only, and the container has no network access. Use `DATA=/path/to/data` if your data is not in `data/omop/`, and `DOCKER=podman` to use Podman.
 
-- Make a short-lived branch, open a pull request, and let the checks run.
-- If you change how networks, time cut-offs, or labels are built, add a test and say in the pull request whether earlier results change.
-- Questions are welcome. Open an issue or ask the team.
+### 5. Build the report
 
-## Citing and license
+```bash
+make report              # writes report/project1.pdf
+```
 
-To cite this work, see [`CITATION.cff`](CITATION.cff). The code is open source under the [Apache-2.0 license](LICENSE). The data is not: it stays under the course's terms (see [`DATA_ACCESS.md`](DATA_ACCESS.md)).
+## Repository layout
+
+```
+data/omop/          course CSV files (local only, never committed)
+notebooks/          analysis notebooks 01-06; executed/ holds copies with outputs
+src/ehrgraph/       Python package: data loading, graph building, network measures, figures
+results/aggregate/  summary CSVs and figures (no patient-level data)
+report/             LaTeX report
+tests/              unit tests on synthetic data
+docs/               results file format and progress log
+scripts/            notebook publishing and reproducibility checks
+```
+
+## Data use
+
+The dataset is private and covered by a data use agreement:
+- The repository contains only code, summary numbers and figures.
+- Each team member uses their own approved copy, and the data stays on that person's computer.
+- Executed notebooks are scanned for patient identifiers before they are committed, and CI checks every pull request.
+
+See [`DATA_ACCESS.md`](DATA_ACCESS.md) for details.
+
+## License and citation
+
+Code: [Apache-2.0](LICENSE). Citation: [`CITATION.cff`](CITATION.cff). EHRSHOT: Wornow et al., *EHRSHOT: An EHR Benchmark for Few-Shot Evaluation of Foundation Models*, NeurIPS 2023 ([arXiv:2307.02028](https://arxiv.org/abs/2307.02028)).

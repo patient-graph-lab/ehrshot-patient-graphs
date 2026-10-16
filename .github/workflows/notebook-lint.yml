@@ -14,7 +14,7 @@ name: notebook-lint
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, trimmed-dataset]
 
 jobs:
   lint-notebooks:

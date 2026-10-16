@@ -1,4 +1,4 @@
-# notebooks/
+# Notebooks
 
 Six notebooks, meant to be run in order. They run on your own computer and read the course data from `data/omop/`.
 
@@ -36,5 +36,3 @@ uv run python scripts/publish_executed.py notebooks/02_long_stay_networks.ipynb
 ```
 
 That checks every output against the real patient IDs first, and only then saves the copy to `notebooks/executed/`.
-
-The old development notebooks (00 to 11) have been removed. Git history still has them.

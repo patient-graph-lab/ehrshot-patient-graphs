@@ -6,10 +6,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version < '3.11'",
 ]
@@ -1084,9 +1084,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-data = [
-    { name = "meds-reader" },
-]
 dev = [
     { name = "ipykernel" },
     { name = "jupyter" },
@@ -1106,7 +1103,6 @@ requires-dist = [
     { name = "jupyter", marker = "extra == 'dev'" },
     { name = "leidenalg" },
     { name = "matplotlib" },
-    { name = "meds-reader", marker = "extra == 'data'" },
     { name = "nbstripout", marker = "extra == 'dev'" },
     { name = "networkx" },
     { name = "pandas" },
@@ -1121,7 +1117,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'gnn'" },
     { name = "torch-geometric", marker = "extra == 'gnn'" },
 ]
-provides-extras = ["data", "gnn", "dev"]
+provides-extras = ["gnn", "dev"]
 
 [[package]]
 name = "exceptiongroup"
@@ -1160,20 +1156,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0f/59/e19834834cb01a32febfbb0f8a23a9088088f5d45991824ff2bc3b5e8acb/filelock-3.32.7.tar.gz", hash = "sha256:37b8a3d9811b0f9aef7e5ec5c71bb320de52df51e6ca9bcd6f5ad81187660da7", size = 225154, upload-time = "2026-09-16T00:24:20.907Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/15/df/31098c5aeb4d966b553641472bd55fcf5fdfac953549894b8a765ba44e91/filelock-3.32.7-py3-none-any.whl", hash = "sha256:65ff0d0190ea42038b32bda4b77834fb05be2cad4c5b9b01aa4dfb3614536e52", size = 100157, upload-time = "2026-09-16T00:24:19.543Z" },
-]
-
-[[package]]
-name = "flexible-schema"
-version = "0.1.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "jsonschema" },
-    { name = "pyarrow" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/da/a1e2540ee68bfebf849b810e12d5d3826f744fad9f5e134e9a533fed22eb/flexible_schema-0.1.1.tar.gz", hash = "sha256:adc8d051c66cab960fc3a9440b44a54eda5d62fe1e59818737adc663fb1d75f5", size = 34747, upload-time = "2025-11-05T17:13:50.46Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/b4/c8a0fa542aa7134ad5e0b55e2c18b6de457103f13d04ec63ee62ae35c9c5/flexible_schema-0.1.1-py3-none-any.whl", hash = "sha256:6ab3a35ce4e518897f142c82470933ea7bfb6a9abc0220e58638b67b16c51f67", size = 23402, upload-time = "2025-11-05T17:13:48.561Z" },
 ]
 
 [[package]]
@@ -1536,10 +1518,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
@@ -2265,10 +2247,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
@@ -2350,49 +2332,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/c0/9f7c9a46090390368a4d7bcb76bb87a4a36c421e4c0792cdb53486ffac7a/matplotlib_inline-0.2.2.tar.gz", hash = "sha256:72f3fe8fce36b70d4a5b612f899090cd0401deddc4ea90e1572b9f4bfb058c79", size = 8150, upload-time = "2026-05-08T17:33:33.49Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/09/5b161152e2d90f7b87f781c2e1267494aef9c32498df793f73ad0a0a494a/matplotlib_inline-0.2.2-py3-none-any.whl", hash = "sha256:3c821cf1c209f59fb2d2d64abbf5b23b67bcb2210d663f9918dd851c6da1fcf6", size = 9534, upload-time = "2026-05-08T17:33:32.055Z" },
-]
-
-[[package]]
-name = "meds"
-version = "0.4.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "flexible-schema" },
-    { name = "jsonschema" },
-    { name = "pyarrow" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/2a/6949d9da216fcc9df2f44dd3d3c10b8dbc6b41c069ec129ca23184cd76fd/meds-0.4.1.tar.gz", hash = "sha256:b6c77f84e32ad49e6065140992396064a8a7bbb1e68440448e53c7e66f3f8f2c", size = 386332, upload-time = "2025-11-05T17:15:04.8Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/4c/2c40e3ba53504728d6895bba26d69c165757424cfa79ce2bc20679cbb0b0/meds-0.4.1-py3-none-any.whl", hash = "sha256:3a83e2410d720da10d133fd6920180a249e063565edbe41f78ac1c5e75c42b6b", size = 20695, upload-time = "2025-11-05T17:15:03.105Z" },
-]
-
-[[package]]
-name = "meds-reader"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "meds" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
-    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "pandas", version = "3.0.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pyarrow" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/50/d8/b5e2a7dc4f0c795196fd4e4748840af408becbff7511f1a19064d6f3e0f0/meds_reader-0.2.0.tar.gz", hash = "sha256:60c79a4b72a28332dfcf9a4cacd90a768c36ebc3e6824caf770dfae460401554", size = 82037, upload-time = "2026-08-13T00:00:17.444Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/c6/e387390da28ad5c06f738c8be7d98604a542caae71c6374dca9ee87c269d/meds_reader-0.2.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:f7a0cd8d19723c61a75596d9962b7c36cbf59389677bd6fbe668486f9851c042", size = 3512527, upload-time = "2026-08-12T23:59:58.579Z" },
-    { url = "https://files.pythonhosted.org/packages/90/59/a4cf194a23b0f1268ccaefdffd4f18fd527bef349dbe98a1f85a72af7fb7/meds_reader-0.2.0-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:96520d6c194162e4713aebac10905189478b14cab55fd57917346404dca1659f", size = 5349316, upload-time = "2026-08-13T00:00:00.391Z" },
-    { url = "https://files.pythonhosted.org/packages/b4/4c/07acc2a4e86f087e503a27c38b3f784344a50b19148027fe25dae63d7703/meds_reader-0.2.0-cp310-cp310-win_amd64.whl", hash = "sha256:aa06f1f199dcca0b477599d563e4b55ed12a3b574edc847a22b886393f41a78e", size = 5059322, upload-time = "2026-08-13T00:00:02.316Z" },
-    { url = "https://files.pythonhosted.org/packages/09/57/1b11658ec3c3b415233d9fd0c57e8f98d1768e339ceaee57f3b50c5df1cc/meds_reader-0.2.0-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:22575847e971f3f6e0f36076b433316ac927053040f2aab2b60bddbf99a246f6", size = 3512520, upload-time = "2026-08-13T00:00:03.999Z" },
-    { url = "https://files.pythonhosted.org/packages/02/d7/dd0f609684f5b03bd71caf76699794e7bf8e9fb01a06620753b75d535925/meds_reader-0.2.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:58002130dc6d8f59173d4783ba464c95745388bf1bad3c5d42af9430fedb5998", size = 5349228, upload-time = "2026-08-13T00:00:05.493Z" },
-    { url = "https://files.pythonhosted.org/packages/10/e1/b124a72726ae044835c6666564506af61c07cb436dcbe895700789850b0c/meds_reader-0.2.0-cp311-cp311-win_amd64.whl", hash = "sha256:35807ff7b54966b14e7b0673a745dca2ebdc160183ae38ab482aeb86e2457bec", size = 5059307, upload-time = "2026-08-13T00:00:07.121Z" },
-    { url = "https://files.pythonhosted.org/packages/2f/f8/099b818e1b57af9cc735356b41275cc073e87ff2d57c12a1268eda9330af/meds_reader-0.2.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:5cf0c382bf0530fd21910de9e2d08590e49e0d4908fce7b636789b977cb52306", size = 3512709, upload-time = "2026-08-13T00:00:08.774Z" },
-    { url = "https://files.pythonhosted.org/packages/18/ea/b0bf682c44d275ca610ebfc196a0b52e449dc28f1d1101e23ee4768dd6a9/meds_reader-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4edeb6a4f1b0a2992b17d4c360a89a2c314690ee78db057028b81454cc06c11b", size = 5349344, upload-time = "2026-08-13T00:00:10.452Z" },
-    { url = "https://files.pythonhosted.org/packages/f7/5a/79649444c3711383afc591d1b1fe379c7302a78708dee59aa45c80fd093f/meds_reader-0.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:e7bf3b4c6dca68e99abefcef5c2244d8ef5fb874ab8111b45aaf825754cc4cdb", size = 5059497, upload-time = "2026-08-13T00:00:12.15Z" },
-    { url = "https://files.pythonhosted.org/packages/89/47/47dc298e0e3269ca829758f614d7cde00e57e999031a6f138cf910f4f071/meds_reader-0.2.0-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:7846cee73caa9fcd6db2dae1a7b345d0c6e7e1ba7c1f6dea2eead00d76f9a796", size = 3512724, upload-time = "2026-08-13T00:00:13.915Z" },
-    { url = "https://files.pythonhosted.org/packages/74/fc/61c1c45a88e888928fa51b74c085b2f24a9c46bbdebbe79214dd1daf2037/meds_reader-0.2.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:3213a781581af5d5a0bf8c6599948241d8141c179fd1d91ef80f77295681a4d5", size = 5349344, upload-time = "2026-08-13T00:00:15.862Z" },
 ]
 
 [[package]]
@@ -2703,10 +2642,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6a/51/63fe664f3908c97be9d2e4f1158eb633317598cfa6e1fc14af5383f17512/networkx-3.6.1.tar.gz", hash = "sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509", size = 2517025, upload-time = "2025-12-08T17:02:39.908Z" }
@@ -3225,10 +3164,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
@@ -4193,10 +4132,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/aa/2a/9618a122aeb2a169a28b03889a2995fe297588964333d4a7d67bdf46e147/rpds_py-2026.6.3.tar.gz", hash = "sha256:1cebd1337c242e4ec2293e541f712b2da849b29f48f0c293684b71c0632625d4", size = 64051, upload-time = "2026-06-30T07:17:53.009Z" }
@@ -4399,10 +4338,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [

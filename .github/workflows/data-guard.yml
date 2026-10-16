@@ -1,7 +1,7 @@
 name: data-guard
 
 # This is the governance gate: it must never be bypassable, and it must run on every PR
-# before anything reaches main. See DATA_ACCESS.md for why this exists.
+# before anything reaches main or trimmed-dataset. See DATA_ACCESS.md for why this exists.
 
 on:
   pull_request:
@@ -37,7 +37,7 @@ jobs:
           # dependencies accumulate. Everything else still gets the check.
           for f in $(git diff --name-only --diff-filter=A "$BASE" "$HEAD" || true); do
             case "$f" in
-              uv.lock|r-viz/renv.lock) continue ;;
+              uv.lock) continue ;;
               notebooks/executed/*) continue ;;  # 5 MB cap, enforced by the scan step below
             esac
             if [ -f "$f" ]; then

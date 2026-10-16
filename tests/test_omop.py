@@ -13,7 +13,6 @@ from ehrgraph.data.omop_labels import (
     long_los_labels,
     new_diagnosis_labels,
 )
-from ehrgraph.data.source import DataSources, find_trimmed_root
 from ehrgraph.netstats.task_analysis import analyze_task, task_graphs_from_labels
 
 HTN_CHILD = 999  # stands in for e.g. "benign essential hypertension"
@@ -127,18 +126,16 @@ def test_pipeline_runs_without_clmbr_and_skips_dirichlet(tmp_path):
     assert coverage == 0.0
 
 
-def test_data_sources_find_trimmed_tables_and_treat_full_release_as_optional(tmp_path, monkeypatch):
+def test_setup_finds_the_data_folder_and_explains_what_is_missing(tmp_path, monkeypatch):
+    from ehrgraph.project import setup
+
     _write_tables(tmp_path)
     monkeypatch.setenv("EHRSHOT_TRIMMED_ROOT", str(tmp_path))
-    assert find_trimmed_root() == tmp_path
-    sources = DataSources(trimmed=tmp_path, full=None)
-    assert not sources.has_full_release
-    assert sources.clmbr_features is None
-    assert "skipped" in sources.describe()
+    assert setup().data == tmp_path
 
     monkeypatch.setenv("EHRSHOT_TRIMMED_ROOT", str(tmp_path / "missing"))
-    with pytest.raises(FileNotFoundError, match="EHRSHOT_TRIMMED_ROOT"):
-        find_trimmed_root()
+    with pytest.raises(FileNotFoundError, match="person.csv"):
+        setup()
 
 
 def test_dirichlet_uses_only_fingerprinted_nodes():
