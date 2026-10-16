@@ -1,6 +1,7 @@
 # Similar Patients, Shared Outcomes
 
 Patient similarity networks and information leakage in EHRSHOT.
+Web Search and Data Mining (WSDM) conference 
 
 Sanjay Malla, Quade Leonard, Ean Stedham.
 
@@ -20,8 +21,6 @@ Main findings:
 - A disease-to-disease network recovers recognisable groups of conditions, such as heart failure, sepsis and respiratory failure.
 
 ![Honest, cheating and random networks for long hospital stays](results/aggregate/figures/02_network_pictures.png)
-
-The full write-up is in [`report/`](report/) (start at [`main.tex`](report/main.tex); each section is in `report/sections/`). Finished notebooks with all outputs are in [`notebooks/executed/`](notebooks/executed/), and you can read them on GitHub without installing anything.
 
 ## Setup
 
