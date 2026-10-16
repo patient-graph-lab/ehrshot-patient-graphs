@@ -1,8 +1,6 @@
 {
   "recommendations": [
     "ms-python.python",
-    "ms-toolsai.jupyter",
-    "reditorsupport.r",
-    "reditorsupport.r-syntax"
+    "ms-toolsai.jupyter"
   ]
 }

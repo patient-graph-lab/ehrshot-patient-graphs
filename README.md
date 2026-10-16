@@ -25,51 +25,90 @@ The full write-up is in [`report/`](report/) (start at [`main.tex`](report/main.
 
 ## Setup
 
-This branch (`trimmed-dataset`) uses only the course's trimmed OMOP dataset.
+This branch (`trimmed-dataset`) uses only the course's trimmed OMOP dataset. You need your own approved copy of it (`ehrshot.zip`).
 
-**Requirements:**
-- Python 3.10 or newer;
-- [uv](https://docs.astral.sh/uv/);
-- your own approved copy of the course dataset (`ehrshot.zip`).
+There are two ways to set up. Both give you the same environment, with the exact package versions pinned in `uv.lock`.
 
-**Optional:** Docker, and a LaTeX installation if you want to build the report PDF.
+- **Option A: Linux, one command.** `setup.sh` does everything.
+- **Option B: VS Code, step by step.** Works on Windows, macOS and Linux.
 
-### Quick setup
+### Option A: Linux, one command
+
+Install [uv](https://docs.astral.sh/uv/) once:
 
 ```bash
-git clone https://github.com/patient-graph-lab/ehrshot-patient-graphs.git
-cd ehrshot-patient-graphs
-./setup.sh ~/Downloads/ehrshot.zip            # add --docker and/or --report for the extras below
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-`setup.sh` does steps 1, 2 and 4 below for you: it creates the environment, unzips the data and runs the tests. Every step is commented in the script, and running it again is safe. The steps below do the same thing by hand.
-
-### 1. Install
+Then:
 
 ```bash
 git clone https://github.com/patient-graph-lab/ehrshot-patient-graphs.git
 cd ehrshot-patient-graphs
+./setup.sh ~/Downloads/ehrshot.zip
+```
+
+The script:
+1. creates the Python environment in `.venv/` (uv downloads a matching Python if you don't have one);
+2. installs the pre-commit safety checks;
+3. unzips the data into `data/omop/`;
+4. checks that the four required tables are there;
+5. runs the unit tests.
+
+Every step is commented in the script, and it is safe to run again.
+
+Optional flags:
+- `--docker` also runs the full check in a clean container (see [Reproducing the results](#reproducing-the-results)).
+- `--report` also builds the report PDF.
+
+Then open the notebooks with `uv run jupyter lab`, or in VS Code from step 6 of Option B.
+
+### Option B: VS Code (Windows, macOS, Linux)
+
+**1. Install the tools** (once per computer):
+- [VS Code](https://code.visualstudio.com/) and [Git](https://git-scm.com/downloads).
+- uv:
+  - Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+  - macOS / Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+  Close and reopen VS Code afterwards so it can find `uv`.
+
+**2. Get the code.** In VS Code, press `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS), run **Git: Clone**, paste `https://github.com/patient-graph-lab/ehrshot-patient-graphs.git`, and open the folder when asked.
+
+**3. Install the extensions.** When VS Code offers to install the recommended extensions, accept. You need **Python** and **Jupyter** (both by Microsoft).
+
+**4. Create the environment.** Open a terminal (**Terminal > New Terminal**) and run:
+
+```bash
 uv sync --extra dev
 uv run pre-commit install
 ```
 
-### 2. Add the data
+This creates a `.venv` folder in the project with everything installed.
 
-Unzip the course dataset into `data/omop/`:
+**5. Add the data.** Unzip `ehrshot.zip` so that the CSV files sit directly in `data/omop/`, not in a subfolder.
+- Windows: right-click the zip, choose **Extract All**, and pick the `data\omop` folder inside the project.
+- macOS / Linux: `unzip ~/Downloads/ehrshot.zip -x '__MACOSX/*' -d data/omop`
 
-```bash
-unzip ~/Downloads/ehrshot.zip -x '__MACOSX/*' -d data/omop
-```
+Check that you can see `data/omop/person.csv`, `visit_occurrence.csv`, `condition_occurrence.csv` and `concept_ancestor.csv`. The folder is gitignored, so the data can never be committed.
 
-The notebooks need `person.csv`, `visit_occurrence.csv`, `condition_occurrence.csv` and `concept_ancestor.csv`. The folder is gitignored, so the data cannot be committed. If you keep the data somewhere else, set `EHRSHOT_TRIMMED_ROOT` to that folder.
+**6. Run the notebooks.**
+1. Open `notebooks/01_data_and_labels.ipynb`.
+2. Click **Select Kernel** (top right), then **Python Environments**, and choose **.venv**.
+3. Click **Run All**.
 
-### 3. Run the notebooks
+Then do the same for `02` to `06`, in order. All six take about 10 minutes.
 
-```bash
-uv run jupyter lab
-```
+**If something goes wrong:**
 
-Open the notebooks in `notebooks/` and run them in order, `01` to `06`. Together they take about 10 minutes.
+| Problem | Fix |
+|---|---|
+| `Couldn't find person.csv ...` | The CSVs are in a subfolder. Move them so they sit directly in `data/omop/`. |
+| `ModuleNotFoundError: ehrgraph`, or VS Code offers to install `ipykernel` | The wrong Python is selected. Click the kernel name (top right) and choose **.venv**. |
+| `.venv` doesn't appear in the kernel list | Run `uv sync --extra dev` again in the terminal, then reload VS Code (**Developer: Reload Window**). |
+| `uv: command not found` | Close and reopen VS Code (or your terminal) after installing uv. |
+
+Results are written to `results/aggregate/` (summary CSVs) and `results/aggregate/figures/`.
 
 | Notebook | Contents |
 |---|---|
@@ -80,25 +119,27 @@ Open the notebooks in `notebooks/` and run them in order, `01` to `06`. Together
 | `05_spreading_and_partitioning` | SIR spreading, cascades, and spectral partitioning |
 | `06_wrap_up` | Both outcomes side by side, plus robustness checks |
 
-Results are written to `results/aggregate/` (summary CSVs) and `results/aggregate/figures/`.
-
-### 4. Check that everything reproduces
+### Reproducing the results
 
 ```bash
-uv run pytest            # unit tests on synthetic data, no dataset needed
-make docker-check        # full run in a clean container
+uv run pytest            # unit tests on synthetic data; no dataset needed
+make docker-check        # Linux/macOS: everything again in a clean container
 ```
 
-`make docker-check` builds a clean container, runs the tests and all six notebooks, and confirms the results match the committed ones. The data is mounted read-only, and the container has no network access. Use `DATA=/path/to/data` if your data is not in `data/omop/`, and `DOCKER=podman` to use Podman.
+`make docker-check` builds a clean container and runs the tests and all six notebooks in it. It then confirms that every result matches the committed ones. The data is mounted read-only, and the container has no network access. It needs Docker, or Podman with `DOCKER=podman`. If your data isn't in `data/omop/`, add `DATA=/path/to/data`.
 
-### 5. Build the report
+### Building the report
 
 ```bash
-make report              # writes report/main.pdf
-make overleaf            # writes report/overleaf.zip for Overleaf
+make report              # report/main.pdf (needs a LaTeX installation)
+make overleaf            # report/overleaf.zip for Overleaf
 ```
 
-To edit the report on Overleaf, run `make overleaf`, then in Overleaf choose *New Project > Upload Project* and select `report/overleaf.zip`. The zip contains `main.tex`, the section files, the bibliography and all figures.
+To work on the report in Overleaf:
+1. Run `make overleaf`.
+2. In Overleaf, choose **New Project > Upload Project** and select `report/overleaf.zip`.
+
+The zip contains `main.tex`, one file per section, the bibliography and all figures.
 
 ## Repository layout
 
