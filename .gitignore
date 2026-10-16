@@ -65,3 +65,13 @@ r-viz/.RData
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# LaTeX build files. Build the PDF with `make report`
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
+report/*.pdf
+report/*.fls
+report/*.fdb_latexmk
