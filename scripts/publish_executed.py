@@ -6,8 +6,8 @@ patient ids and prediction times on this machine, cleaned of local paths,
 and only then written to notebooks/executed/. Anything that fails the
 check is not written.
 
-    uv run python scripts/publish_executed.py notebooks/07_network_stats_task_a.ipynb ...
-    uv run python scripts/publish_executed.py --from /tmp/07_out.ipynb notebooks/07_...ipynb
+    uv run python scripts/publish_executed.py notebooks/02_long_stay_networks.ipynb ...
+    uv run python scripts/publish_executed.py --from /tmp/02_out.ipynb notebooks/02_...ipynb
 
 See src/ehrgraph/eval/publish.py for what is checked and why.
 """

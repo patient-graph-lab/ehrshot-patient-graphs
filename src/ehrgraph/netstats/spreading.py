@@ -44,9 +44,11 @@ def sir_curves(
     probability `gamma`. Seeds are random nodes in the largest piece."""
     rng = np.random.default_rng(seed)
     nodes, nbrs = _neighbors(graph)
-    lcc = list(max(nx.connected_components(graph), key=len))
+    lcc = max(nx.connected_components(graph), key=len)
     index = {n: i for i, n in enumerate(nodes)}
-    lcc_idx = np.array([index[n] for n in lcc])
+    # sorted: set order changes with Python's hash seed, so without this the
+    # same `seed` picks different starting nodes in different runs
+    lcc_idx = np.sort([index[n] for n in lcc])
     n = len(nodes)
     curves = np.zeros((runs, steps + 1))
     for r in range(runs):

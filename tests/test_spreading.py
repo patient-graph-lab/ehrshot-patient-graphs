@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 import networkx as nx
 import numpy as np
 
@@ -44,3 +48,25 @@ def test_spectral_and_leiden_recover_two_obvious_groups():
     assert out["spectral_vs_leiden_ari"] > 0.9
     assert out["spectral_eta_squared"] > 0.9
     assert out["spectral_modularity"] > 0.4
+
+
+def test_sir_is_the_same_whatever_the_hash_seed():
+    # Regression: starting nodes used to depend on set order (PYTHONHASHSEED).
+    code = (
+        "import networkx as nx\n"
+        "from ehrgraph.netstats.spreading import sir_curves\n"
+        "g = nx.connected_watts_strogatz_graph(300, 6, 0.05, seed=1)\n"
+        "g = nx.relabel_nodes(g, lambda i: f'stay-{i}')\n"
+        "print(sir_curves(g, beta=0.3, steps=10, runs=5)[10])\n"
+    )
+    outputs = {
+        subprocess.run(
+            [sys.executable, "-c", code],
+            env={**os.environ, "PYTHONHASHSEED": str(h)},
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        for h in (1, 2, 3)
+    }
+    assert len(outputs) == 1, outputs
