@@ -1,4 +1,6 @@
 {
   "python.terminal.activateEnvironment": true,
-  "jupyter.jupyterServerType": "local"
+  "jupyter.jupyterServerType": "local",
+  "python-envs.defaultEnvManager": "ms-python.python:venv",
+  "python-envs.defaultPackageManager": "ms-python.python:pip"
 }
