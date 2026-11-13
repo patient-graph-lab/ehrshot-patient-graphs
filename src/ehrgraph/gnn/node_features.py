@@ -47,6 +47,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
+from gensim.models import Word2Vec
 
 #: Which blocks go into a model's node features. CLMBR is kept out of the
 #: diagnosis sets: it is identical under every condition, so mixing it in would
@@ -248,7 +249,6 @@ def node2vec_walks(adj, wts=None, num_walks=10, walk_length=30, p=1.0, q=1.0, se
             walks.append(walk)
     return walks
 
-
 def node2vec_block(
     graph: nx.Graph,
     nodes: list,
@@ -287,8 +287,7 @@ def node2vec_block(
     signal); embeddings are only comparable WITHIN one graph (rotation is
     arbitrary), never between the safe and the leaky graph; and different seeds
     give different embeddings."""
-    from gensim.models import Word2Vec
-
+    
     adj, wts = _adjacency(graph, nodes, weighted)
     walks = node2vec_walks(adj, wts, num_walks, walk_length, p, q, seed)
     model = Word2Vec(
@@ -317,7 +316,6 @@ def node2vec_block(
         [f"{name}_{i}" for i in range(dim)] + [f"{name}_isolated"],
         meta={"p": p, "q": q, "n_walks": len(walks), "isolated": int(z[:, dim].sum())},
     )
-
 
 # ------------------------------------------------- assembly
 
