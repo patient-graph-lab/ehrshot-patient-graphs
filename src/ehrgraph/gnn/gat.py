@@ -104,18 +104,23 @@ def fit_one(X: torch.Tensor, y: torch.Tensor, edge_index: torch.Tensor, sp: dict
     net = build_net(X.shape[1], cfg).to(dev)
     opt = torch.optim.Adam(net.parameters(), lr=cfg["lr"], weight_decay=cfg["weight_decay"])
 
+    hist = {"train_loss": [], "val_loss": [], "val_auc": []}      # one entry per epoch, for the training curves
     best_auc, best_epoch, best_scores, best_state, stale = -1.0, 0, None, None, 0
     for epoch in range(max_epochs):
         net.train()
         opt.zero_grad()
         logit = net(X, edge_index).view(-1)
-        F.binary_cross_entropy_with_logits(logit[tr], y_f[tr]).backward()
+        loss = F.binary_cross_entropy_with_logits(logit[tr], y_f[tr])
+        loss.backward()
         opt.step()
 
         net.eval()
         with torch.no_grad():
             s = net(X, edge_index).view(-1)
         auc = roc_auc_score(y_va, s[va].cpu().numpy())
+        hist["train_loss"].append(float(loss.detach()))                # measured with dropout ON, before the step
+        hist["val_loss"].append(float(F.binary_cross_entropy_with_logits(s[va], y_f[va])))   # dropout OFF
+        hist["val_auc"].append(float(auc))
         if auc > best_auc:
             best_auc, best_epoch, best_scores, stale = auc, epoch, s.cpu().numpy(), 0
             if return_model:
@@ -124,7 +129,7 @@ def fit_one(X: torch.Tensor, y: torch.Tensor, edge_index: torch.Tensor, sp: dict
             stale += 1
             if epoch >= min_epochs and stale >= patience:
                 break
-    out = {"val_auc": best_auc, "epoch": best_epoch, "scores": best_scores}
+    out = {"val_auc": best_auc, "epoch": best_epoch, "scores": best_scores, "history": hist}
     if return_model:
         net.load_state_dict(best_state)
         out["net"] = net.eval()
@@ -184,6 +189,34 @@ def evaluate_data(data, model: str = "gat", seed: int = 0, configs=CONFIGS, year
             pos = int(yt_[b].sum())
             out[f"auc_{name}"] = (roc_auc_score(yt_[b], s[te][b]) if pos >= 10 and b.sum() - pos >= 10 else np.nan)
     return out
+
+
+def training_curves(data, model: str = "gat", seed: int = 0, configs=CONFIGS, subset: np.ndarray | None = None,
+                    device: str | None = None, **fit_kw) -> pd.DataFrame:
+    """The per-epoch history of every setting in `configs` for one split seed, in long
+    format: one row per (setting, epoch) with `train_loss`, `val_loss` and `val_auc`.
+
+    It repeats exactly the runs `evaluate_data` does (same seed, same splits, same
+    code), so the setting flagged `chosen` and its `best_epoch` are the ones behind
+    that run's reported test AUROC. `train_loss` is measured with dropout ON (what
+    the optimiser sees); `val_loss` and `val_auc` with dropout OFF. Epochs count from 0,
+    as the `epoch` column of the results does. Nothing here touches the test stays."""
+    prep = _prepare(data, model, seed, subset, device)
+    best_i, best_auc, runs = None, -1.0, []
+    for i, cfg in enumerate(configs):
+        r = fit_one(prep["X"], prep["y"], prep["ei"], prep["sp"], cfg, seed, **fit_kw)
+        runs.append(r)
+        if r["val_auc"] > best_auc:                                   # same tie rule as `_select`: first wins
+            best_i, best_auc = i, r["val_auc"]
+    rows = []
+    for i, (cfg, r) in enumerate(zip(configs, runs)):
+        h = r["history"]
+        n = len(h["train_loss"])
+        rows.append(pd.DataFrame({
+            "seed": seed, "config": i, "dropout": cfg["dropout"], "weight_decay": cfg["weight_decay"],
+            "chosen": i == best_i, "best_epoch": r["epoch"], "epoch": np.arange(n),
+            "train_loss": h["train_loss"], "val_loss": h["val_loss"], "val_auc": h["val_auc"]}))
+    return pd.concat(rows, ignore_index=True)
 
 
 def run_models(datasets: dict, runs: list, seeds, year: np.ndarray | None = None, subset: np.ndarray | None = None,

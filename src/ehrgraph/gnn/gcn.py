@@ -115,33 +115,34 @@ def fit_one(X: torch.Tensor, y: torch.Tensor, edge_index: torch.Tensor, edge_wei
     net = build_net(X.shape[1], cfg).to(dev)
     opt = torch.optim.Adam(net.parameters(), lr=cfg["lr"], weight_decay=cfg["weight_decay"])
 
+    hist = {"train_loss": [], "val_loss": [], "val_auc": []}      # one entry per epoch, for the training curves
     best_auc, best_epoch, best_scores, stale = -1.0, 0, None, 0
     for epoch in range(max_epochs):
         net.train()
         opt.zero_grad()
         logit = net(X, edge_index, edge_weight=edge_weight).view(-1)
-        F.binary_cross_entropy_with_logits(logit[tr], y_f[tr]).backward()
+        loss = F.binary_cross_entropy_with_logits(logit[tr], y_f[tr])
+        loss.backward()
         opt.step()
 
         net.eval()
         with torch.no_grad():
             s = net(X, edge_index, edge_weight=edge_weight).view(-1)
         auc = roc_auc_score(y_va, s[va].cpu().numpy())
+        hist["train_loss"].append(float(loss.detach()))                # measured with dropout ON, before the step
+        hist["val_loss"].append(float(F.binary_cross_entropy_with_logits(s[va], y_f[va])))   # dropout OFF
+        hist["val_auc"].append(float(auc))
         if auc > best_auc:
             best_auc, best_epoch, best_scores, stale = auc, epoch, s.cpu().numpy(), 0
         else:
             stale += 1
             if epoch >= min_epochs and stale >= patience:
                 break
-    return {"val_auc": best_auc, "epoch": best_epoch, "scores": best_scores}
+    return {"val_auc": best_auc, "epoch": best_epoch, "scores": best_scores, "history": hist}
 
 
-def evaluate_data(data, model: str = "gcn", seed: int = 0, configs=CONFIGS, year: np.ndarray | None = None,
-                  subset: np.ndarray | None = None, device: str | None = None, **fit_kw) -> dict:
-    """One split seed on a PyG `Data` from `build_pyg_data` (reads x, y, edge_index,
-    edge_weight, edge_attr, patient_idx, x_scale_mask). `subset`: boolean mask of the
-    stays to use at all (e.g. those with a CLMBR vector); the network is restricted
-    to links among them."""
+def _prepare(data, model: str, seed: int, subset: np.ndarray | None, device: str | None):
+    """Everything one run needs: tensors on the device, the splits, the links (and weights)."""
     dev = pick_device(device)
     X, y, groups = data.x.numpy(), data.y.numpy(), data.patient_idx.numpy()
     ei, ew = edges_for(data, model)
@@ -154,20 +155,34 @@ def evaluate_data(data, model: str = "gcn", seed: int = 0, configs=CONFIGS, year
         ei = torch.as_tensor(remap[e[:, ok]], dtype=torch.long)
         ew = None if ew is None else ew[torch.as_tensor(ok)]
         X, y, groups = X[keep], y[keep], groups[keep]
-        year = None if year is None else year[subset]
-
     sp = make_splits(y, groups, seed)                       # identical to the linear / GraphSAGE / GAT runs
     Xs = _standardize(X, data.x_scale_mask.numpy(), sp["train"])
-    Xt = torch.as_tensor(Xs, dtype=torch.float32, device=dev)
-    yt = torch.as_tensor(y, dtype=torch.long, device=dev)
-    ei = ei.to(dev)
-    ew = None if ew is None else ew.to(dev)
+    return {"X": torch.as_tensor(Xs, dtype=torch.float32, device=dev),
+            "y_np": y, "y": torch.as_tensor(y, dtype=torch.long, device=dev),
+            "groups": groups, "ei": ei.to(dev), "ew": None if ew is None else ew.to(dev),
+            "sp": sp, "subset": subset}
 
+
+def _select(prep: dict, configs, seed: int, **fit_kw) -> dict:
     best = None
     for cfg in configs:
-        r = fit_one(Xt, yt, ei, ew, sp, cfg, seed, **fit_kw)
+        r = fit_one(prep["X"], prep["y"], prep["ei"], prep["ew"], prep["sp"], cfg, seed, **fit_kw)
         if best is None or r["val_auc"] > best["val_auc"]:
             best = {**r, "cfg": cfg}
+    return best
+
+
+def evaluate_data(data, model: str = "gcn", seed: int = 0, configs=CONFIGS, year: np.ndarray | None = None,
+                  subset: np.ndarray | None = None, device: str | None = None, **fit_kw) -> dict:
+    """One split seed on a PyG `Data` from `build_pyg_data` (reads x, y, edge_index,
+    edge_weight, edge_attr, patient_idx, x_scale_mask). `subset`: boolean mask of the
+    stays to use at all (e.g. those with a CLMBR vector); the network is restricted
+    to links among them."""
+    prep = _prepare(data, model, seed, subset, device)
+    best = _select(prep, configs, seed, **fit_kw)
+    y, ei, sp = prep["y_np"], prep["ei"], prep["sp"]
+    if year is not None and subset is not None:
+        year = year[subset]
 
     te, s = sp["test"], best["scores"]
     out = {"seed": seed, "n_used": int(len(y)), "n_edges": int(ei.shape[1]),
@@ -183,6 +198,34 @@ def evaluate_data(data, model: str = "gcn", seed: int = 0, configs=CONFIGS, year
             pos = int(yt_[b].sum())
             out[f"auc_{name}"] = (roc_auc_score(yt_[b], s[te][b]) if pos >= 10 and b.sum() - pos >= 10 else np.nan)
     return out
+
+
+def training_curves(data, model: str = "gcn", seed: int = 0, configs=CONFIGS, subset: np.ndarray | None = None,
+                    device: str | None = None, **fit_kw) -> pd.DataFrame:
+    """The per-epoch history of every setting in `configs` for one split seed, in long
+    format: one row per (setting, epoch) with `train_loss`, `val_loss` and `val_auc`.
+
+    It repeats exactly the runs `evaluate_data` does (same seed, same splits, same
+    code), so the setting flagged `chosen` and its `best_epoch` are the ones behind
+    that run's reported test AUROC. `train_loss` is measured with dropout ON (what
+    the optimiser sees); `val_loss` and `val_auc` with dropout OFF. Epochs count from 0,
+    as the `epoch` column of the results does. Nothing here touches the test stays."""
+    prep = _prepare(data, model, seed, subset, device)
+    best_i, best_auc, runs = None, -1.0, []
+    for i, cfg in enumerate(configs):
+        r = fit_one(prep["X"], prep["y"], prep["ei"], prep["ew"], prep["sp"], cfg, seed, **fit_kw)
+        runs.append(r)
+        if r["val_auc"] > best_auc:                                   # same tie rule as `_select`: first wins
+            best_i, best_auc = i, r["val_auc"]
+    rows = []
+    for i, (cfg, r) in enumerate(zip(configs, runs)):
+        h = r["history"]
+        n = len(h["train_loss"])
+        rows.append(pd.DataFrame({
+            "seed": seed, "config": i, "dropout": cfg["dropout"], "weight_decay": cfg["weight_decay"],
+            "chosen": i == best_i, "best_epoch": r["epoch"], "epoch": np.arange(n),
+            "train_loss": h["train_loss"], "val_loss": h["val_loss"], "val_auc": h["val_auc"]}))
+    return pd.concat(rows, ignore_index=True)
 
 
 def run_models(datasets: dict, runs: list, seeds, year: np.ndarray | None = None, subset: np.ndarray | None = None,
