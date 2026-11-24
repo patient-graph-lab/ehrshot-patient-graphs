@@ -59,6 +59,12 @@ FEATURE_SETS = {
     "n2v": ["n2v"],
     "dx_n2v": ["dx_svd", "dx_summary", "n2v"],
     "clmbr_n2v": ["clmbr", "n2v"],
+    # stay-level clinical features
+    "ctx": ["demo", "admission", "prior_use"],
+    "ctx_labs": ["demo", "admission", "prior_use", "labs"],
+    "dx_comorb": ["dx_svd", "dx_summary", "comorbidity"],
+    "dx_ctx": ["dx_svd", "dx_summary", "comorbidity", "demo", "admission", "prior_use"],
+    "dx_ctx_labs": ["dx_svd", "dx_summary", "comorbidity", "demo", "admission", "prior_use", "labs"],
 }
 #: Blocks that depend on the diagnosis vectors, i.e. that can leak through `source`.
 LEAKABLE_BLOCKS = ("dx_svd", "dx_summary")
@@ -330,6 +336,7 @@ def make_blocks(
     rw_steps: int = 8,
     n2v: dict | None = None,
     n2v_cache: dict | None = None,
+    extra_blocks: dict | None = None, 
     seed: int = 0,
 ) -> dict:
     """All feature blocks for one (graph condition, feature source) cell.
@@ -356,7 +363,12 @@ def make_blocks(
         n2v_b,
         clmbr_block(tg, clmbr_dim, seed),
     ]
-    return {b.name: b for b in blocks if b is not None}
+    out = {b.name: b for b in blocks if b is not None}
+    from ehrgraph.gnn.stay_features import comorbidity_block
+    out["comorbidity"] = comorbidity_block(matrix, codes)
+    if extra_blocks:
+        out.update(extra_blocks)
+    return out
 
 
 def assemble(blocks: dict, names: list):
